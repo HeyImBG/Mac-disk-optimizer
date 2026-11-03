@@ -28,6 +28,8 @@ private func fixture() -> ScanIndex {
 private struct FakeApps: RunningAppProvider {
     var ids: Set<String>
     func runningBundleIDs() -> Set<String> { ids }
+    var notInstalled: Set<String> = []
+    func isInstalledApp(_ bundleId: String) -> Bool { !notInstalled.contains(bundleId) }
 }
 
 private let rules = RuleSet(rules: [
@@ -97,4 +99,13 @@ private func analyzer(running: Set<String> = []) -> CachesAnalyzer {
     let report = CachesAnalyzer(rules: shipped, runningApps: FakeApps(ids: []), home: home).analyze(fixture())
     #expect(report.groups.map(\.category) == ["App caches", "Logs"])
     #expect(report.preselectedSize == 1350)
+}
+
+@Test func cachesOfThingsThatAreNotInstalledAppsAreNotPreselected() {
+    var apps = FakeApps(ids: [])
+    apps.notInstalled = ["com.small"]
+    let report = CachesAnalyzer(rules: rules, runningApps: apps, home: home).analyze(fixture())
+    let small = report.groups[0].items.first { $0.candidate.name == "com.small" }!
+    #expect(!small.preselected && !small.appRunning)
+    #expect(report.groups[0].preselectedSize == 1300)   // big + open, not the helper's cache
 }

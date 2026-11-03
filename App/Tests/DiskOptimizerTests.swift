@@ -234,6 +234,8 @@ private final class FakeStore: ScanPersisting, @unchecked Sendable {
 private struct FakeApps: RunningAppProvider {
     var ids: Set<String>
     func runningBundleIDs() -> Set<String> { ids }
+    var notInstalled: Set<String> = []
+    func isInstalledApp(_ bundleId: String) -> Bool { !notInstalled.contains(bundleId) }
 }
 
 private final class FakeCleaner: Cleaner, @unchecked Sendable {

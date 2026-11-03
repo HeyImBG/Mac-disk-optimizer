@@ -23,8 +23,9 @@ public struct CleanupRule: Codable, Sendable, Equatable, Identifiable {
     /// Bundle id of the app that must not be running while this is cleaned.
     public let bundleId: String?
     /// Use the matched folder's name as the bundle id (for `~/Library/Caches/<bundle id>`).
+    /// Folders whose name is not shaped like a bundle id (`com.vendor.app`) are then skipped.
     public let bundleIdFromFolder: Bool?
-    /// Names of matched items to skip.
+    /// Names of matched items to skip, ignoring case. `*` works as in `pattern`, for example `com.apple.*`.
     public let excludeNames: [String]?
     /// Set to false to keep a rule in the file but switch it off (for example while unverified).
     public let enabled: Bool?
@@ -147,8 +148,21 @@ public struct RuleEngine: Sendable {
         for segment in segments[literal...] {
             level = level.flatMap { parent in parent.children.filter { RuleEngine.glob(segment, $0.name) } }
         }
-        let excluded = Set(rule.excludeNames ?? [])
-        return level.filter { !excluded.contains($0.name) }
+        let excluded = (rule.excludeNames ?? []).map { $0.lowercased() }
+        return level.filter { node in
+            if rule.bundleIdFromFolder == true, !RuleEngine.looksLikeBundleId(node.name) { return false }
+            let name = node.name.lowercased()
+            return !excluded.contains { RuleEngine.glob($0, name) }
+        }
+    }
+
+    /// `com.vendor.app`: at least two dot-separated parts of letters, digits, `-` or `_`.
+    /// Names like `CloudKit` or `GeoServices` belong to system services, not apps.
+    static func looksLikeBundleId(_ name: String) -> Bool {
+        let parts = name.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count >= 2 && parts.allSatisfy { part in
+            !part.isEmpty && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        }
     }
 
     /// `*` matches any run of characters (including none) inside one name.

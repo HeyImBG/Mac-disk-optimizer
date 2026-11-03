@@ -14,6 +14,7 @@ Researched 2026-11-03 for task T14. Every row has a source. Rows marked **unveri
 
 - Only paths under `~/Library/Caches/<bundle id>/` are candidates for the safe risk level. Each one must name its bundle id so the engine can check whether that app is running.
 - Do not touch `~/Library/Application Support`. Apple says it "can include files that contain user data" ([Apple archived File System Programming Guide](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/MacOSXDirectories/MacOSXDirectories.html)).
+- Leave out Apple's own caches in `~/Library/Caches` (`com.apple.*` plus non-bundle-id ones like `CloudKit`, `GeoServices`, `SiriTTS`). They belong to system services that are always running, and the running-app check cannot see them. Verified on Berat's Mac on 2026-11-03: trashing 118 of them while they ran was followed by a Finder crash. Defenses since then: the cache rule only matches bundle-id-shaped folder names, only pre-selects caches whose bundle id is an installed app, and `CleanupEngine` refuses `~/Library/Caches/com.apple.*` outright.
 - Do not touch `/Library/Caches` or `/System/Library/Caches`. They are system-wide, and the sources found so far do not cover them. Leave them out of T15 until they are researched.
 - Deleting caches can slow the next launch while they rebuild. One Apple Community answer says clearing the user cache often frees little, because apps refill it ([Apple Community thread](https://discussions.apple.com/thread/254749384)). This is a secondary source.
 
