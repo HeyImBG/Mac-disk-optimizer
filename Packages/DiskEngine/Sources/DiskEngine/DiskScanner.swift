@@ -38,8 +38,11 @@ public enum ScanEvent: Sendable {
 ///   under a denylist path.
 /// - A file with several hard links is counted once; the other names appear with size 0.
 public struct DiskScanner: Sendable {
+    /// `/.nofollow`, `/.resolve` and `/.vol` are macOS alias folders that show the whole disk a
+    /// second time under another path, so scanning them counts everything twice.
     public static let defaultDenylist: [String] = [
         "/dev", "/Volumes", "/System/Volumes", "/private/var/vm", "/.Spotlight-V100", "/.fseventsd",
+        "/.nofollow", "/.resolve", "/.vol",
     ]
 
     public let denylist: [String]
