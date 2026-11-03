@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "user-app-caches",
+      "pattern": "~/Library/Caches/*",
+      "category": "App caches",
+      "risk": "safe",
+      "reason": "Apps rebuild their cache files when they need them, so removing them frees space without losing your data. The first launch afterwards can be a little slower.",
+      "bundleIdFromFolder": true
+    },
+    {
+      "id": "user-logs",
+      "pattern": "~/Library/Logs/*",
+      "category": "Logs",
+      "risk": "review",
+      "reason": "Log files are only needed to find out what went wrong. Look before you remove one that an app is still writing.",
+      "excludeNames": ["DiagnosticReports"]
+    },
+    {
+      "id": "user-crash-reports",
+      "pattern": "~/Library/Logs/DiagnosticReports/*",
+      "category": "Crash reports",
+      "risk": "review",
+      "reason": "Crash reports are only useful if you are debugging that crash. Keep the ones you still need.",
+      "enabled": false
+    }
+  ]
+}
