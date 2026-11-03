@@ -7,6 +7,9 @@ import AppKit
 /// (and by `CleanupEngine` to refuse).
 public protocol RunningAppProvider: Sendable {
     func runningBundleIDs() -> Set<String>
+    /// Whether an app with this bundle id is installed. Only then can the running-app check see
+    /// whoever writes its cache; background services and helpers are invisible to it.
+    func isInstalledApp(_ bundleId: String) -> Bool
 }
 
 public struct SystemRunningApps: RunningAppProvider {
@@ -19,6 +22,14 @@ public struct SystemRunningApps: RunningAppProvider {
         return []
         #endif
     }
+
+    public func isInstalledApp(_ bundleId: String) -> Bool {
+        #if canImport(AppKit)
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) != nil
+        #else
+        return false
+        #endif
+    }
 }
 
 /// One suggestion plus what the screen needs to show it.
@@ -27,7 +38,7 @@ public struct CleanupItem: Sendable, Equatable, Identifiable {
     public let candidate: CleanupCandidate
     /// The app that owns these files is open right now, so cleaning must wait.
     public let appRunning: Bool
-    /// Ticked by default: only `safe` items whose app is closed.
+    /// Ticked by default: only `safe` items whose app is installed and closed.
     public let preselected: Bool
 }
 
@@ -65,9 +76,12 @@ public struct CachesAnalyzer: Sendable {
         var byCategory: [String: [CleanupItem]] = [:]
         for candidate in candidates {
             let appRunning = candidate.bundleId.map { running.contains($0.lowercased()) } ?? false
+            // A cache whose owner is not an installed app may belong to a background service that
+            // is running right now, which the running-app check cannot see. Never tick it for the user.
+            let ownerIsApp = candidate.bundleId.map { runningApps.isInstalledApp($0) } ?? false
             byCategory[candidate.category, default: []].append(CleanupItem(
                 candidate: candidate, appRunning: appRunning,
-                preselected: candidate.risk == .safe && !appRunning))
+                preselected: candidate.risk == .safe && !appRunning && ownerIsApp))
         }
         let groups = byCategory.map { CleanupGroup(category: $0.key, items: $0.value) }   // items arrive largest first
         return CleanupReport(groups: groups.sorted {
