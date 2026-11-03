@@ -66,7 +66,7 @@ private let finder = NodeModulesFinder(
     #expect(found.map(\.path) == ["\(home)/code/web/node_modules", "\(home)/code/api/node_modules"])
     #expect(found[0].size == 500)                       // the nested one is inside, not counted again
     #expect(found[0].projectPath == "\(home)/code/web")
-    #expect(found.allSatisfy(\.hasLockfile))
+    #expect(found.allSatisfy { $0.hasLockfile })
 }
 
 @Test func reportsHowLongSinceTheProjectWasTouched() {
