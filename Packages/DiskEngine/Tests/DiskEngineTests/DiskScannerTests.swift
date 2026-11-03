@@ -99,6 +99,12 @@ private func runScan(_ scanner: DiskScanner, _ root: URL) async -> (events: [Sca
     #expect(index.node(at: base + "/keep/k.bin") != nil)
 }
 
+@Test func defaultDenylistSkipsRootAliasFolders() {
+    for alias in ["/.nofollow", "/.resolve", "/.vol"] {
+        #expect(DiskScanner.defaultDenylist.contains(alias))
+    }
+}
+
 @Test func streamsProgressThenFinishes() async throws {
     let root = try makeTempRoot()
     defer { try? FileManager.default.removeItem(at: root) }
