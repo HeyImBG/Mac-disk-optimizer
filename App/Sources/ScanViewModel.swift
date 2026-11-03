@@ -9,6 +9,27 @@ protocol ScanRunner: Sendable {
 
 extension DiskScanner: ScanRunner {}
 
+/// Where finished scans are kept. `ScanStore` (SQLite) is the real one.
+protocol ScanPersisting: Sendable {
+    func save(_ index: ScanIndex) throws
+    func loadLatest(rootPath: String) throws -> ScanIndex?
+}
+
+extension ScanStore: ScanPersisting {
+    func save(_ index: ScanIndex) throws {
+        try save(index, at: Date(), keep: 3)
+    }
+
+    func loadLatest(rootPath: String) throws -> ScanIndex? {
+        try loadLatest(rootPath: Optional(rootPath))?.index
+    }
+}
+
+enum AppStore {
+    /// The app's scan database, or nil if it could not be opened (the app still works without it).
+    static let shared: (any ScanPersisting)? = try? ScanStore.openDefault()
+}
+
 enum SortKey: Equatable {
     case size
     case name
@@ -53,10 +74,12 @@ final class ScanViewModel {
     private(set) var ascending = false
 
     private let runner: any ScanRunner
+    private let store: (any ScanPersisting)?
     private var task: Task<Void, Never>?
 
-    init(runner: any ScanRunner = DiskScanner()) {
+    init(runner: any ScanRunner = DiskScanner(), store: (any ScanPersisting)? = nil) {
         self.runner = runner
+        self.store = store
     }
 
     var isScanning: Bool {
@@ -129,11 +152,28 @@ final class ScanViewModel {
                 index = result.index
                 currentPath = result.index.root.path
                 state = .finished(unreadable: result.unreadablePaths.count)
+                if let store {
+                    let saved = result.index
+                    // Writing a big tree takes a moment, so do it off the main actor.
+                    await Task.detached { try? store.save(saved) }.value
+                }
             case .failed(let message):
                 state = .failed(message)
             }
         }
         if Task.isCancelled, isScanning { state = .idle }
+    }
+
+    /// Shows the last saved scan of `root` straight away, if there is one and nothing else has
+    /// been scanned yet.
+    func loadLastScan(root: URL) async {
+        guard let store, index == nil else { return }
+        let path = root.path
+        let saved = await Task.detached { try? store.loadLatest(rootPath: path) }.value
+        guard let saved, index == nil, !isScanning else { return }
+        index = saved
+        currentPath = saved.root.path
+        state = .finished(unreadable: 0)
     }
 
     // MARK: - Browsing and sorting

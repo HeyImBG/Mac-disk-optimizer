@@ -13,6 +13,15 @@ public struct ScanIndex: Sendable {
         self.nodesByPath = map
     }
 
+    /// Wraps a tree whose sizes are already rolled up and whose children are already sorted,
+    /// such as one loaded from `ScanStore`. Skips the roll-up pass.
+    public init(alreadyRolledUp root: FileNode) {
+        var map: [String: FileNode] = [:]
+        ScanIndex.collect(root, into: &map)
+        self.root = root
+        self.nodesByPath = map
+    }
+
     /// Total size in bytes of everything under the root.
     public var totalSize: Int64 { root.size }
 
@@ -27,6 +36,13 @@ public struct ScanIndex: Sendable {
     }
 
     // MARK: - Private
+
+    /// Largest first; ties broken by name so the order is stable.
+    static func sortedLargestFirst(_ nodes: [FileNode]) -> [FileNode] {
+        nodes.sorted { a, b in
+            a.size != b.size ? a.size > b.size : a.name < b.name
+        }
+    }
 
     private static func normalize(_ path: String) -> String {
         var p = path
@@ -47,13 +63,9 @@ public struct ScanIndex: Sendable {
             files += rolled.fileCount
             kids.append(rolled)
         }
-        // Largest first; ties broken by name so the order is stable.
-        kids.sort { a, b in
-            a.size != b.size ? a.size > b.size : a.name < b.name
-        }
         result.size = total
         result.fileCount = files
-        result.children = kids
+        result.children = sortedLargestFirst(kids)
         return result
     }
 
