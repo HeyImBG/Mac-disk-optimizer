@@ -20,3 +20,7 @@ open DiskOptimizer.xcodeproj
 ## License
 
 MIT, see `LICENSE`.
+
+## Command line
+
+`swift run --package-path Packages/DiskEngine diskopt report` prints free space, the biggest folders and the biggest files. `diskopt suggest` lists cleanup suggestions. The command line tool only reads; it never deletes. Use the app to clean up.
