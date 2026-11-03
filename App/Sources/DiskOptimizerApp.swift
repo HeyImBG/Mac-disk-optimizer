@@ -12,7 +12,10 @@ struct DiskOptimizerApp: App {
 
 struct ContentView: View {
     var body: some View {
-        Text("Disk Optimizer \(DiskEngine.version)")
-            .padding(40)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Disk Optimizer \(DiskEngine.version)")
+            VolumeDebugView()
+        }
+        .padding(40)
     }
 }
