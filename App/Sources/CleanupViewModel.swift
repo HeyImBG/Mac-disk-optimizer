@@ -61,7 +61,7 @@ final class CleanupViewModel {
                 return CleanupViewModel(analyzer: nil, loadError: "The cleanup rules file is missing from the app.", cleaner: cleaner)
             }
             let rules = try RuleSet.decode(Data(contentsOf: url))
-            return CleanupViewModel(analyzer: CachesAnalyzer(rules: rules), cleaner: cleaner)
+            return CleanupViewModel(analyzer: CachesAnalyzer(rules: rules, nodeModules: NodeModulesFinder()), cleaner: cleaner)
         } catch {
             return CleanupViewModel(analyzer: nil, loadError: "The cleanup rules could not be read.", cleaner: cleaner)
         }
