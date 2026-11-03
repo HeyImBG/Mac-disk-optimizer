@@ -69,6 +69,8 @@ private struct RecordingTrasher: Trasher {
 private struct FakeApps: RunningAppProvider {
     var ids: Set<String> = []
     func runningBundleIDs() -> Set<String> { ids }
+    var notInstalled: Set<String> = []
+    func isInstalledApp(_ bundleId: String) -> Bool { !notInstalled.contains(bundleId) }
 }
 
 private func engine(_ box: Sandbox, apps: Set<String> = [], trasher: (any Trasher)? = nil,
@@ -385,4 +387,16 @@ private func refusal(_ results: [CleanupResult]) -> CleanupRefusal? {
         return
     }
     #expect(!box.exists(path))
+}
+
+@Test func refusesApplesOwnCachesButNotOtherApps() throws {
+    let box = try Sandbox()
+    try box.write("Library/Caches/com.apple.Safari/cache.db")
+    try box.write("Library/Caches/com.spotify.client/data")
+    let e = engine(box, trasher: RecordingTrasher())
+    for path in [box.home + "/Library/Caches/com.apple.Safari", box.home + "/Library/Caches/COM.APPLE.Safari/cache.db"] {
+        let fp = ItemFingerprint(isDirectory: true, size: 1, fileCount: 1, newestModified: 0)
+        #expect(refusal(e.clean([CleanupRequest(path: path, bundleId: nil, fingerprint: fp)])) == .protectedPath, "\(path)")
+    }
+    #expect(!e.isProtected(box.home + "/Library/Caches/com.spotify.client"))
 }

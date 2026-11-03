@@ -242,6 +242,8 @@ public struct CleanupEngine: Sendable {
         for folder in protectedFolders.map(CleanupEngine.key) where p == folder || folder.hasPrefix(p + "/") {
             return true
         }
+        // Apple's own caches belong to system services that are always running.
+        if p.hasPrefix(CleanupEngine.key(home + "/Library/Caches/com.apple.")) { return true }
         return CleanupEngine.isProtectedByName(p)
     }
 

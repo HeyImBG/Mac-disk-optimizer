@@ -196,3 +196,18 @@ private func shippedRules() throws -> RuleSet {
     #expect(found.map(\.name) == ["com.example.big", "app.log", "com.example.small"])
     #expect(!found.contains { $0.name == "crash.ips" })
 }
+
+@Test func folderNamesThatAreNotBundleIdsAreSkipped() {
+    let c = "\(home)/Library/Caches"
+    let names = ["CloudKit", "GeoServices", "Google", "com.", ".hidden", "com..x", "com.vendor app", "com.vendor.app"]
+    let index = ScanIndex(root: folder(home, [folder("\(home)/Library", [
+        folder(c, names.map { folder("\(c)/\($0)", [file("\(c)/\($0)", "x", 10)]) }),
+    ])]))
+    #expect(engine([cacheRule]).candidates(in: index).map(\.name) == ["com.vendor.app"])
+}
+
+@Test func excludedNamesIgnoreCase() {
+    let rule = CleanupRule(id: "caches", pattern: "~/Library/Caches/*", category: "App caches", risk: .safe,
+                           reason: "Rebuilt by the app.", bundleIdFromFolder: true, excludeNames: ["COM.EXAMPLE.B*"])
+    #expect(engine([rule]).candidates(in: fixture()).map(\.name) == ["com.example.small"])
+}
