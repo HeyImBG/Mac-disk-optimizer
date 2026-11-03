@@ -16,6 +16,14 @@ public struct ItemFingerprint: Sendable, Equatable, Codable {
     /// Wrapping sum of every modification time in milliseconds. Catches an older file being edited,
     /// which the newest time alone would miss.
     public var modifiedSum: Int64 = 0
+
+    public init(isDirectory: Bool, size: Int64, fileCount: Int, newestModified: Double, modifiedSum: Int64 = 0) {
+        self.isDirectory = isDirectory
+        self.size = size
+        self.fileCount = fileCount
+        self.newestModified = newestModified
+        self.modifiedSum = modifiedSum
+    }
 }
 
 public struct CleanupRequest: Sendable, Equatable {
@@ -67,6 +75,11 @@ public enum CleanupOutcome: Sendable, Equatable {
 public struct CleanupResult: Sendable, Equatable {
     public let path: String
     public let outcome: CleanupOutcome
+
+    public init(path: String, outcome: CleanupOutcome) {
+        self.path = path
+        self.outcome = outcome
+    }
 }
 
 /// Moves one item to the Trash.
