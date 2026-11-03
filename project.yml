@@ -1,0 +1,44 @@
+name: DiskOptimizer
+options:
+  bundleIdPrefix: com.heyimbg
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+packages:
+  DiskEngine:
+    path: Packages/DiskEngine
+targets:
+  DiskOptimizer:
+    type: application
+    platform: macOS
+    sources: [App/Sources]
+    dependencies:
+      - package: DiskEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.heyimbg.DiskOptimizer
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Disk Optimizer
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+  DiskOptimizerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [App/Tests]
+    dependencies:
+      - target: DiskOptimizer
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.heyimbg.DiskOptimizerTests
+schemes:
+  DiskOptimizer:
+    build:
+      targets:
+        DiskOptimizer: all
+    test:
+      targets: [DiskOptimizerTests]
