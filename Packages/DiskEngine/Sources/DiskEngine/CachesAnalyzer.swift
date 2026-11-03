@@ -61,17 +61,25 @@ public struct CleanupReport: Sendable, Equatable {
 public struct CachesAnalyzer: Sendable {
     private let engine: RuleEngine
     private let runningApps: any RunningAppProvider
+    private let nodeModules: NodeModulesFinder?
 
+    /// Pass a `NodeModulesFinder` to also suggest `node_modules` folders of untouched projects.
     public init(rules: RuleSet, runningApps: any RunningAppProvider = SystemRunningApps(),
-                home: String = NSHomeDirectory()) {
+                home: String = NSHomeDirectory(), nodeModules: NodeModulesFinder? = nil) {
         self.engine = RuleEngine(ruleSet: rules, home: home)
         self.runningApps = runningApps
+        self.nodeModules = nodeModules
     }
 
     /// Groups are largest first, and so are the items inside them.
     public func analyze(_ index: ScanIndex) -> CleanupReport {
         let running = runningApps.runningBundleIDs()
-        let candidates = CachesAnalyzer.withoutNested(engine.candidates(in: index))
+        var all = engine.candidates(in: index)
+        if let nodeModules {
+            all += nodeModules.candidates(in: index)
+            all.sort { $0.size != $1.size ? $0.size > $1.size : $0.path < $1.path }
+        }
+        let candidates = CachesAnalyzer.withoutNested(all)
 
         var byCategory: [String: [CleanupItem]] = [:]
         for candidate in candidates {

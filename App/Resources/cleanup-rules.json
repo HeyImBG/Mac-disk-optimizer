@@ -34,7 +34,9 @@
       "category": "Logs",
       "risk": "review",
       "reason": "Log files are only needed to find out what went wrong. Look before you remove one that an app is still writing.",
-      "excludeNames": ["DiagnosticReports"]
+      "excludeNames": [
+        "DiagnosticReports"
+      ]
     },
     {
       "id": "user-crash-reports",
@@ -42,6 +44,82 @@
       "category": "Crash reports",
       "risk": "review",
       "reason": "Crash reports are only useful if you are debugging that crash. Keep the ones you still need.",
+      "enabled": false
+    },
+    {
+      "id": "dev-homebrew-cache",
+      "pattern": "~/Library/Caches/Homebrew/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Homebrew keeps the files it downloaded. It downloads them again when it needs them. Close Terminal sessions that are running brew first."
+    },
+    {
+      "id": "dev-npm-cache",
+      "pattern": "~/.npm/_cacache",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "npm keeps a download cache and repairs or refills it by itself. Close any npm command that is running first."
+    },
+    {
+      "id": "dev-cargo-registry-cache",
+      "pattern": "~/.cargo/registry/cache/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Cargo keeps the Rust packages it downloaded and fetches them again when a build needs them. Close any cargo build first."
+    },
+    {
+      "id": "dev-cargo-registry-src",
+      "pattern": "~/.cargo/registry/src/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Cargo unpacks downloaded Rust packages here and does it again when a build needs them. Close any cargo build first."
+    },
+    {
+      "id": "dev-cargo-git",
+      "pattern": "~/.cargo/git/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Cargo keeps copies of Git projects your Rust code depends on and clones them again when needed. Close any cargo build first."
+    },
+    {
+      "id": "dev-gradle-caches",
+      "pattern": "~/.gradle/caches/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Gradle keeps downloaded libraries and compiled build scripts and rebuilds them on the next build. The next build will be slower. Close Android Studio and any Gradle build first."
+    },
+    {
+      "id": "dev-xcode-derived-data",
+      "pattern": "~/Library/Developer/Xcode/DerivedData/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Xcode keeps build files here and rebuilds them, so the next build of that project is slower. Quit Xcode first.",
+      "bundleId": "com.apple.dt.Xcode",
+      "enabled": false
+    },
+    {
+      "id": "dev-xcode-device-support",
+      "pattern": "~/Library/Developer/Xcode/iOS DeviceSupport/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Xcode copied debug files from your iPhone or iPad. It copies them again the next time you connect that device, which takes a few minutes. Quit Xcode first.",
+      "bundleId": "com.apple.dt.Xcode",
+      "enabled": false
+    },
+    {
+      "id": "dev-yarn-classic-cache",
+      "pattern": "~/Library/Caches/Yarn/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "Yarn keeps the packages it downloaded and fetches them again when needed. Close any yarn command first.",
+      "enabled": false
+    },
+    {
+      "id": "dev-pip-cache",
+      "pattern": "~/Library/Caches/pip/*",
+      "category": "Developer caches",
+      "risk": "review",
+      "reason": "pip keeps downloaded Python packages and fetches them again when needed. Close any pip command first.",
       "enabled": false
     }
   ]
