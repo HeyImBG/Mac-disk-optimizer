@@ -18,7 +18,7 @@ private func sampleIndex(root: String = "/r", extra: Int64 = 0) -> ScanIndex {
 @Test func saveThenLoadRoundTripsTheSameTree() throws {
     let store = try ScanStore()
     let original = sampleIndex()
-    let id = try store.save(original)
+    let id = try store.save(original, minFileSize: 0)
     let loaded = try #require(try store.loadLatest())
     #expect(loaded.id == id)
     #expect(loaded.rootPath == "/r")
@@ -36,7 +36,7 @@ private func sampleIndex(root: String = "/r", extra: Int64 = 0) -> ScanIndex {
     let store = try ScanStore()
     try store.save(sampleIndex(root: "/a"), at: Date(timeIntervalSince1970: 100))
     try store.save(sampleIndex(root: "/b"), at: Date(timeIntervalSince1970: 200))
-    try store.save(sampleIndex(root: "/a", extra: 1_000), at: Date(timeIntervalSince1970: 300))
+    try store.save(sampleIndex(root: "/a", extra: 1_000), at: Date(timeIntervalSince1970: 300), minFileSize: 0)
 
     #expect(try store.loadLatest()?.rootPath == "/a")
     let a = try #require(try store.loadLatest(rootPath: "/a"))
@@ -50,7 +50,7 @@ private func sampleIndex(root: String = "/r", extra: Int64 = 0) -> ScanIndex {
     let store = try ScanStore()
     var ids: [Int64] = []
     for i in 0..<4 {
-        ids.append(try store.save(sampleIndex(extra: Int64(i)), keep: 2))
+        ids.append(try store.save(sampleIndex(extra: Int64(i)), keep: 2, minFileSize: 0))
     }
     // Only the newest 2 remain; the latest is the last one saved.
     #expect(try store.loadLatest()?.id == ids[3])
@@ -65,7 +65,29 @@ private func sampleIndex(root: String = "/r", extra: Int64 = 0) -> ScanIndex {
     let path = dir.appendingPathComponent("scans.sqlite").path
 
     let original = sampleIndex()
-    try ScanStore(path: path).save(original)
+    try ScanStore(path: path).save(original, minFileSize: 0)
     let reopened = try ScanStore(path: path)
     #expect(try reopened.loadLatest()?.index.root == original.root)
+}
+
+@Test func smallFilesAreLeftOutButTotalsStay() throws {
+    let store = try ScanStore()
+    let original = sampleIndex()
+    try store.save(original, minFileSize: 200)
+    let loaded = try #require(try store.loadLatest()?.index)
+    #expect(loaded.node(at: "/r/sub/z.bin")?.size == 500)
+    #expect(loaded.node(at: "/r/sub/y.bin") == nil)
+    #expect(loaded.node(at: "/r/a.txt") == nil)
+    #expect(loaded.node(at: "/r/empty") != nil)
+    #expect(loaded.totalSize == original.totalSize)
+    #expect(loaded.root.fileCount == original.root.fileCount)
+}
+
+@Test func onlyTheLatestScanIsKeptByDefault() throws {
+    let store = try ScanStore()
+    let first = try store.save(sampleIndex(), minFileSize: 0)
+    let second = try store.save(sampleIndex(extra: 1), minFileSize: 0)
+    #expect(first != second)
+    let count = try store.scanCount()
+    #expect(count == 1)
 }
