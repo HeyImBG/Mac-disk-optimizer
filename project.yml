@@ -16,7 +16,7 @@ targets:
   DiskOptimizer:
     type: application
     platform: macOS
-    sources: [App/Sources]
+    sources: [App/Sources, App/Resources]
     dependencies:
       - package: DiskEngine
     settings:
