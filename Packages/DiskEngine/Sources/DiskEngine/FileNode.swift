@@ -27,3 +27,7 @@ public struct FileNode: Sendable, Equatable {
         self.children = children
     }
 }
+
+extension FileNode: Identifiable {
+    public var id: String { path }
+}

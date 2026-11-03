@@ -5,6 +5,12 @@ public struct ScanProgress: Sendable, Equatable {
     public var filesScanned: Int
     public var bytesScanned: Int64
     public var currentPath: String
+
+    public init(filesScanned: Int, bytesScanned: Int64, currentPath: String) {
+        self.filesScanned = filesScanned
+        self.bytesScanned = bytesScanned
+        self.currentPath = currentPath
+    }
 }
 
 /// The finished scan.
@@ -12,6 +18,11 @@ public struct ScanResult: Sendable {
     public let index: ScanIndex
     /// Folders that could not be read (for example because of missing permission).
     public let unreadablePaths: [String]
+
+    public init(index: ScanIndex, unreadablePaths: [String] = []) {
+        self.index = index
+        self.unreadablePaths = unreadablePaths
+    }
 }
 
 public enum ScanEvent: Sendable {

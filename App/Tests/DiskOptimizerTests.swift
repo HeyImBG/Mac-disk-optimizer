@@ -69,3 +69,85 @@ private func makeOnboarding(_ result: ProbeResult, opener: @escaping (URL) -> Bo
     #expect(model.openSettings() == FullDiskAccessLinks.urls[0])
     #expect(opened.count == 1)
 }
+
+// MARK: - ScanViewModel
+
+private struct FakeRunner: ScanRunner {
+    var events: [ScanEvent]
+    func scan(root: URL) -> AsyncStream<ScanEvent> {
+        AsyncStream { continuation in
+            for event in events { continuation.yield(event) }
+            continuation.finish()
+        }
+    }
+}
+
+private func sampleIndex() -> ScanIndex {
+    func file(_ dir: String, _ name: String, _ size: Int64) -> FileNode {
+        FileNode(name: name, path: "\(dir)/\(name)", isDirectory: false, size: size)
+    }
+    let sub = FileNode(name: "sub", path: "/r/sub", isDirectory: true, children: [file("/r/sub", "z.bin", 50)])
+    let root = FileNode(name: "r", path: "/r", isDirectory: true, children: [
+        file("/r", "b.txt", 300), file("/r", "a.txt", 100), sub,
+    ])
+    return ScanIndex(root: root)
+}
+
+@MainActor
+private func scanned(events: [ScanEvent]? = nil) async -> ScanViewModel {
+    let finished = ScanEvent.finished(ScanResult(index: sampleIndex()))
+    let model = ScanViewModel(runner: FakeRunner(events: events ?? [finished]))
+    await model.scan(root: URL(fileURLWithPath: "/r"))
+    return model
+}
+
+@MainActor
+@Test func scanFinishesAndListsBySizeDescending() async {
+    let progress = ScanEvent.progress(ScanProgress(filesScanned: 2, bytesScanned: 400, currentPath: "/r"))
+    let model = await scanned(events: [
+        progress, .finished(ScanResult(index: sampleIndex(), unreadablePaths: ["/r/locked"])),
+    ])
+    #expect(model.state == .finished(unreadable: 1))
+    #expect(model.rows.map(\.name) == ["b.txt", "a.txt", "sub"])
+    #expect(model.canGoUp == false)
+}
+
+@MainActor
+@Test func sortingByNameAndFlipping() async {
+    let model = await scanned()
+    model.toggleSort(.name)
+    #expect(model.rows.map(\.name) == ["a.txt", "b.txt", "sub"])
+    model.toggleSort(.name)
+    #expect(model.rows.map(\.name) == ["sub", "b.txt", "a.txt"])
+    model.toggleSort(.size)
+    #expect(model.rows.map(\.name) == ["b.txt", "a.txt", "sub"])
+    model.toggleSort(.size)
+    #expect(model.rows.map(\.name) == ["sub", "a.txt", "b.txt"])
+}
+
+@MainActor
+@Test func opensFolderAndGoesUp() async throws {
+    let model = await scanned()
+    let sub = try #require(model.rows.first { $0.name == "sub" })
+    model.open(sub)
+    #expect(model.rows.map(\.name) == ["z.bin"])
+    #expect(model.canGoUp)
+    model.goUp()
+    #expect(model.currentPath == "/r")
+    #expect(!model.canGoUp)
+}
+
+@MainActor
+@Test func openingAFileDoesNothing() async throws {
+    let model = await scanned()
+    let file = try #require(model.rows.first { $0.name == "a.txt" })
+    model.open(file)
+    #expect(model.currentPath == "/r")
+}
+
+@MainActor
+@Test func failedScanShowsMessage() async {
+    let model = await scanned(events: [.failed("Cannot read /nope")])
+    #expect(model.state == .failed("Cannot read /nope"))
+    #expect(model.rows.isEmpty)
+}
