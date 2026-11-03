@@ -10,6 +10,7 @@ struct ScanView: View {
     @State private var quickLookURL: URL?
     @State private var showChart = false
     @State private var showCleanup = false
+    @State private var showGrowth = false
     private let chartDepth = 4
 
     var body: some View {
@@ -37,6 +38,7 @@ struct ScanView: View {
         .sheet(isPresented: $showCleanup) {
             if let index = model.index { CleanupView(index: index) }
         }
+        .sheet(isPresented: $showGrowth) { GrowthView(location: location) }
         .navigationTitle(location.name)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -51,6 +53,11 @@ struct ScanView: View {
                 }
                 .pickerStyle(.segmented)
                 .help("List or chart")
+            }
+            ToolbarItem {
+                Button("What grew") { showGrowth = true }
+                    .disabled(model.isScanning)
+                    .help("See which folders grew since the last scan")
             }
             ToolbarItem {
                 Button("Review cleanup") { showCleanup = true }

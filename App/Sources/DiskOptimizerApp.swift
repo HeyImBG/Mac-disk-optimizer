@@ -3,9 +3,23 @@ import DiskEngine
 
 @main
 struct DiskOptimizerApp: App {
+    @State private var freeSpace = FreeSpaceViewModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+        }
+        MenuBarExtra {
+            FreeSpaceMenu(model: freeSpace)
+        } label: {
+            Label(freeSpace.title, systemImage: "internaldrive")
+                .task {
+                    // Keep the number fresh while the app runs.
+                    while !Task.isCancelled {
+                        freeSpace.refresh()
+                        try? await Task.sleep(for: .seconds(60))
+                    }
+                }
         }
     }
 }
