@@ -86,7 +86,7 @@
       "pattern": "~/.gradle/caches/*",
       "category": "Developer caches",
       "risk": "review",
-      "reason": "Gradle keeps downloaded libraries and compiled build scripts and rebuilds them on the next build. The next build will be slower. Close Android Studio and any Gradle build first."
+      "reason": "Gradle keeps downloaded libraries and compiled build scripts and rebuilds them on the next build. The next build will be slower. Close Android Studio and any Gradle build first, and run gradle --stop, because Gradle keeps a helper running in the background."
     },
     {
       "id": "dev-xcode-derived-data",

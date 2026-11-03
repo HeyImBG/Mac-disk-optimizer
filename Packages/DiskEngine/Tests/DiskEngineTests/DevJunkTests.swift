@@ -152,3 +152,37 @@ private func shippedRules() throws -> RuleSet {
     let found = RuleEngine(ruleSet: try shippedRules(), home: home).candidates(in: ScanIndex(root: tree))
     #expect(found.map(\.ruleId) == ["dev-npm-cache", "dev-cargo-registry-cache"])   // DerivedData rule is off; cargo index is left alone
 }
+
+// MARK: - Where node_modules are looked for (T25 safety review)
+
+private func project(_ dir: String) -> FileNode {
+    folder(dir, [file(dir, "package.json", 1), file(dir, "package-lock.json", 1),
+                 folder("\(dir)/node_modules", [file("\(dir)/node_modules", "x.js", 100)])])
+}
+
+@Test func hiddenToolFoldersAreSkipped() {
+    let ext = "\(home)/.vscode/extensions/some.ext"
+    let nvm = "\(home)/.nvm/versions/node/v22/lib"
+    let index = ScanIndex(root: folder(home, [
+        folder("\(home)/.vscode", [folder("\(home)/.vscode/extensions", [project(ext)])]),
+        folder("\(home)/.nvm", [folder("\(home)/.nvm/versions", [folder("\(home)/.nvm/versions/node", [
+            folder("\(home)/.nvm/versions/node/v22", [project(nvm)])])])]),
+        folder("\(home)/code", [project("\(home)/code/site")]),
+    ]))
+    #expect(finder.find(in: index).map(\.path) == ["\(home)/code/site/node_modules"])
+    // A scan that starts inside a hidden folder finds nothing either.
+    let inside = ScanIndex(root: folder("\(home)/.vscode", [folder("\(home)/.vscode/extensions", [project(ext)])]))
+    #expect(finder.find(in: inside).isEmpty)
+}
+
+@Test func onlyTheHomeFolderIsSearched() {
+    let global = "/usr/local/lib"
+    let users = folder("/Users", [folder(home, [folder("\(home)/code", [project("\(home)/code/site")])])])
+    let disk = ScanIndex(root: folder("/", [
+        folder("/usr", [folder("/usr/local", [project(global)])]), users,
+        folder("/Applications", [project("/Applications/Thing")]),
+    ]))
+    #expect(finder.find(in: disk).map(\.path) == ["\(home)/code/site/node_modules"])
+    let outside = ScanIndex(root: folder("/opt", [project("/opt/tool")]))
+    #expect(finder.find(in: outside).isEmpty)
+}
