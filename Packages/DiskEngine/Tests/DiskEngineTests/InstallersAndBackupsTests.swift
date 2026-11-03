@@ -82,8 +82,15 @@ private let installerDates = FakeDates(dates: [
 }
 
 @Test func analyzerShowsInstallersButNeverPreselectsThem() {
+    // CachesAnalyzer uses the real clock, so these dates are relative to the real "now".
+    let real = Date()
+    func ago(_ n: Int) -> Date { real.addingTimeInterval(-Double(n) * 86_400) }
+    let dates = FakeDates(dates: [
+        "\(dl)/old.dmg": ago(90), "\(dl)/old.pkg": ago(45), "\(dl)/recent.dmg": ago(5),
+        "\(dl)/data.zip": ago(60), "\(dl)/Setup.MPKG": ago(31),
+    ])
     let analyzer = CachesAnalyzer(rules: RuleSet(rules: []), runningApps: NoApps(), home: home,
-                                  installers: OldInstallerFinder(dates: installerDates, home: home))
+                                  installers: OldInstallerFinder(dates: dates, home: home))
     let report = analyzer.analyze(downloadsFixture())
     #expect(report.groups.map(\.category) == ["Old installers"])
     #expect(report.totalSize == 500 + 300 + 200 + 120)
