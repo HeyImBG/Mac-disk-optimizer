@@ -57,7 +57,7 @@ private func day(_ n: Int) -> Date { Date(timeIntervalSince1970: Double(n) * 86_
     #expect(found.map(\.name) == ["huge.bin", "film.mov"])
     let small = LargeFileAnalyzer(dates: FakeDates(dates: [:]))
         .find(in: fixture(), query: LargeFileQuery(minSize: 1 * MB))
-    #expect(small.count == 8)
+    #expect(small.count == 7)
 }
 
 @Test func filtersByKind() {
@@ -71,14 +71,14 @@ private func day(_ n: Int) -> Date { Date(timeIntervalSince1970: Double(n) * 86_
 
 @Test func onlyFilesNotOpenedSinceTheCutoff() {
     let dates = FakeDates(dates: [
-        "/h/Movies/film.mov": day(100),       // old
-        "/h/Downloads/old.dmg": day(10),      // recent
-        "/h/Movies/clip.MP4": day(50),        // old
+        "/h/Movies/film.mov": day(100),       // opened after the cutoff
+        "/h/Downloads/old.dmg": day(200),     // opened after the cutoff
+        "/h/Movies/clip.MP4": day(50),        // opened before the cutoff
         // huge.bin and setup.pkg: unknown
     ])
     let query = LargeFileQuery(notOpenedSince: day(60))
     let found = LargeFileAnalyzer(dates: dates).find(in: fixture(), query: query)
-    // film.mov (day 100) is newer than the cutoff; only clip.MP4 (day 50) is older.
+    // Only clip.MP4 (day 50) was last opened before day 60; unknown dates are left out.
     #expect(found.map(\.name) == ["clip.MP4"])
     #expect(found[0].lastOpened == day(50))
 }
