@@ -61,11 +61,21 @@ public struct ScanStore: Sendable {
         try migrator.migrate(queue)
     }
 
-    /// Saves a scan and returns its id. Older scans of the same root beyond `keep` are deleted.
+    /// Saves a scan and returns its id. Only the newest `keep` scans of the same root are kept.
+    ///
+    /// Every folder is saved, but files smaller than `minFileSize` are left out: on a full disk they
+    /// are millions of rows (a 5.4M file scan of `/` made a 4.5 GB database). Folder sizes and file
+    /// counts are still the full rolled-up totals.
     @discardableResult
-    public func save(_ index: ScanIndex, at date: Date = Date(), keep: Int = 3) throws -> Int64 {
+    public func save(_ index: ScanIndex, at date: Date = Date(), keep: Int = 1,
+                     minFileSize: Int64 = 1_000_000) throws -> Int64 {
         try dbQueue.write { db in
             let root = index.root
+            // Prune first, so the new scan reuses the freed pages instead of growing the file.
+            try db.execute(sql: """
+                DELETE FROM scans WHERE rootPath = ? AND id NOT IN
+                    (SELECT id FROM scans WHERE rootPath = ? ORDER BY id DESC LIMIT ?)
+                """, arguments: [root.path, root.path, max(1, keep) - 1])
             try db.execute(
                 sql: "INSERT INTO scans (rootPath, createdAt, totalSize) VALUES (?, ?, ?)",
                 arguments: [root.path, date.timeIntervalSince1970, root.size])
@@ -75,18 +85,20 @@ public struct ScanStore: Sendable {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """)
             func add(_ node: FileNode, parent: String?) throws {
+                if parent != nil, !node.isDirectory, node.size < minFileSize { return }
                 try insert.execute(arguments: [
                     scanId, node.path, parent, node.name, node.isDirectory, node.size, node.fileCount,
                 ])
                 for child in node.children { try add(child, parent: node.path) }
             }
             try add(root, parent: nil)
-            try db.execute(sql: """
-                DELETE FROM scans WHERE rootPath = ? AND id NOT IN
-                    (SELECT id FROM scans WHERE rootPath = ? ORDER BY id DESC LIMIT ?)
-                """, arguments: [root.path, root.path, max(1, keep)])
             return scanId
         }
+    }
+
+    /// Number of saved scans (for tests).
+    func scanCount() throws -> Int {
+        try dbQueue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM scans") ?? 0 }
     }
 
     /// The most recent scan, optionally only for one root folder. Nil if there is none.
