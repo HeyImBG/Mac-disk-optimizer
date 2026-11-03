@@ -1,0 +1,98 @@
+name: Release
+# Push a tag like v0.1.0 to build an ad-hoc signed app and attach it to a GitHub release.
+# "Run workflow" by hand, or a pull request that edits this file, only builds and keeps the zip as a
+# workflow artifact; it publishes nothing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  # Builds (never publishes) when this file itself changes, so a broken edit shows up on its pull request.
+  pull_request:
+    paths: [".github/workflows/release.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  XCODE_VERSION: "26.6"
+
+jobs:
+  build:
+    name: Build app
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      # A tag is user-controlled text: it is only ever used through this variable, never inside a script body.
+      VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app" && xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen && xcodegen --version
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build (Release, universal, ad-hoc signed)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project DiskOptimizer.xcodeproj \
+            -scheme DiskOptimizer \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/dd \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES
+      - name: Check the app
+        run: |
+          APP="build/dd/Build/Products/Release/DiskOptimizer.app"
+          test -d "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Signature|Identifier"
+          lipo -archs "$APP/Contents/MacOS/DiskOptimizer"
+      - name: Zip
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent "build/dd/Build/Products/Release/DiskOptimizer.app" "dist/DiskOptimizer-${VERSION}.zip"
+          (cd dist && shasum -a 256 "DiskOptimizer-${VERSION}.zip" > "DiskOptimizer-${VERSION}.zip.sha256")
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiskOptimizer-${{ env.VERSION }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DiskOptimizer-${{ github.ref_name }}
+          path: dist
+      - name: Create release
+        run: |
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          cat > notes.md <<'NOTES'
+          Disk Optimizer for macOS 14 or later (Apple silicon and Intel).
+
+          This build is signed ad hoc, not with an Apple Developer ID, so macOS will not open it with a double click the first time. Unzip it, move it to Applications, then right-click it, choose Open, and confirm. The SHA-256 file lets you check the download.
+
+          The app only suggests what to remove. You confirm every item, and files go to the Trash.
+          NOTES
+          gh release create "$TAG" dist/* --repo "$REPO" --verify-tag --title "Disk Optimizer $TAG" --notes-file notes.md $PRE
