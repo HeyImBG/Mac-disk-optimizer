@@ -97,3 +97,10 @@ private func fixture() -> ScanIndex {
     #expect(report.isEmpty)
     #expect(report.gamesSize == 0)
 }
+
+@Test func aContainerFolderThatEndsInUtmIsNotListedAsAVM() {
+    // com.utmapp.UTM ends in ".utm" when the case is ignored, but it only holds the real VMs.
+    let report = GamesAndVMsAnalyzer(home: home).analyze(fixture())
+    #expect(!report.virtualMachines.contains { $0.name.hasPrefix("com.utmapp") })
+    #expect(report.virtualMachines.filter { $0.source == "UTM" }.count == 1)
+}

@@ -118,6 +118,13 @@ public struct GamesAndVMsAnalyzer: Sendable {
             }
         }
 
+        // A folder whose name only happens to end in ".utm" (for example com.utmapp.UTM, UTM's own
+        // container) holds the real VMs: list the VMs, not the folder. Then drop anything nested in a kept item.
+        let paths = items.map(\.path)
+        items = items.filter { item in !paths.contains { $0.hasPrefix(item.path + "/") } }
+        let keptPaths = items.map(\.path)
+        items = items.filter { item in !keptPaths.contains { item.path.hasPrefix($0 + "/") } }
+
         func order(_ a: AppFootprint, _ b: AppFootprint) -> Bool {
             a.size != b.size ? a.size > b.size : a.path < b.path
         }
