@@ -78,16 +78,15 @@ public struct CachesAnalyzer: Sendable {
     /// Drops a candidate that lies inside another one, so its bytes are not counted twice.
     /// Keeps the order (largest first) of what remains.
     static func withoutNested(_ candidates: [CleanupCandidate]) -> [CleanupCandidate] {
-        let parents = candidates.map(\.path).sorted()
-        var nested = Set<String>()
-        var lastKept: String?
-        for path in parents {
-            if let kept = lastKept, path.hasPrefix(kept + "/") {
-                nested.insert(path)
-            } else {
-                lastKept = path
+        let paths = Set(candidates.map(\.path))
+        func hasCandidateAncestor(_ path: String) -> Bool {
+            var parts = path.split(separator: "/").map(String.init)
+            while parts.count > 1 {
+                parts.removeLast()
+                if paths.contains("/" + parts.joined(separator: "/")) { return true }
             }
+            return false
         }
-        return candidates.filter { !nested.contains($0.path) }
+        return candidates.filter { !hasCandidateAncestor($0.path) }
     }
 }
