@@ -122,7 +122,9 @@ final class CleanupViewModel {
         let chosen = selectedItems
         guard case .ready = state, !chosen.isEmpty else { return }
         state = .cleaning
-        fingerprintTask?.cancel()
+        // Use only fingerprints taken at review time. Taking one now would compare the item with
+        // itself and hide any change made after the user looked at it.
+        await fingerprintTask?.value
         let cleaner = self.cleaner
         let known = reviewed
         let lines = await Task.detached { () -> [CleanupLine] in
@@ -130,7 +132,7 @@ final class CleanupViewModel {
             var lines: [CleanupLine] = []
             for item in chosen {
                 let c = item.candidate
-                if let request = known[c.id] ?? cleaner.makeRequest(for: c) {
+                if let request = known[c.id] {
                     requests.append(request)
                 } else {
                     lines.append(CleanupLine(path: c.path, name: c.name, size: c.size,
