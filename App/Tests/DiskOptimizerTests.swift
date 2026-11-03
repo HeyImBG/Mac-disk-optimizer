@@ -228,3 +228,145 @@ private final class FakeStore: ScanPersisting, @unchecked Sendable {
     await model.loadLastScan(root: URL(fileURLWithPath: "/r"))
     #expect(model.state == .idle)
 }
+
+// MARK: - Cleanup review (T20)
+
+private struct FakeApps: RunningAppProvider {
+    var ids: Set<String>
+    func runningBundleIDs() -> Set<String> { ids }
+}
+
+private final class FakeCleaner: Cleaner, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _cleaned: [[String]] = []
+    private var _requested: [String] = []
+    var refuse: Set<String> = []
+    var cleaned: [[String]] { lock.lock(); defer { lock.unlock() }; return _cleaned }
+    var requested: [String] { lock.lock(); defer { lock.unlock() }; return _requested }
+
+    func makeRequest(for candidate: CleanupCandidate) -> CleanupRequest? {
+        lock.lock(); _requested.append(candidate.path); lock.unlock()
+        return CleanupRequest(path: candidate.path, bundleId: candidate.bundleId,
+                       fingerprint: ItemFingerprint(isDirectory: true, size: candidate.size, fileCount: 1, newestModified: 0))
+    }
+
+    func clean(_ requests: [CleanupRequest]) -> [CleanupResult] {
+        lock.lock(); _cleaned.append(requests.map(\.path)); lock.unlock()
+        return requests.map {
+            refuse.contains($0.path)
+                ? CleanupResult(path: $0.path, outcome: .refused(.changedSinceReview))
+                : CleanupResult(path: $0.path, outcome: .trashed(trashedTo: nil))
+        }
+    }
+}
+
+private let cleanHome = "/Users/test"
+
+private func cleanIndex() -> ScanIndex {
+    func f(_ dir: String, _ n: String, _ s: Int64) -> FileNode {
+        FileNode(name: n, path: "\(dir)/\(n)", isDirectory: false, size: s)
+    }
+    func d(_ p: String, _ c: [FileNode]) -> FileNode {
+        FileNode(name: URL(fileURLWithPath: p).lastPathComponent, path: p, isDirectory: true, children: c)
+    }
+    let c = "\(cleanHome)/Library/Caches", l = "\(cleanHome)/Library/Logs"
+    let caches = d(c, [d("\(c)/com.big", [f("\(c)/com.big", "x", 900)]),
+                       d("\(c)/com.open", [f("\(c)/com.open", "x", 400)])])
+    let logs = d(l, [f(l, "app.log", 300)])
+    return ScanIndex(root: d(cleanHome, [d("\(cleanHome)/Library", [caches, logs])]))
+}
+
+private let cleanRules = RuleSet(rules: [
+    CleanupRule(id: "caches", pattern: "~/Library/Caches/*", category: "App caches", risk: .safe,
+                reason: "Rebuilt.", bundleIdFromFolder: true),
+    CleanupRule(id: "logs", pattern: "~/Library/Logs/*", category: "Logs", risk: .review, reason: "Logs."),
+])
+
+@MainActor
+private func cleanModel(_ cleaner: FakeCleaner, running: Set<String> = ["com.open"]) -> CleanupViewModel {
+    let analyzer = CachesAnalyzer(rules: cleanRules, runningApps: FakeApps(ids: running), home: cleanHome)
+    return CleanupViewModel(analyzer: analyzer, cleaner: cleaner)
+}
+
+@MainActor
+@Test func onlySafeItemsWithClosedAppsStartTicked() {
+    let model = cleanModel(FakeCleaner())
+    model.load(cleanIndex())
+    #expect(model.selectedItems.map(\.candidate.name) == ["com.big"])   // review-only logs and the open app stay unticked
+    #expect(model.selectedSize == 900)
+}
+
+@MainActor
+@Test func itemsOfARunningAppCannotBeTicked() {
+    let model = cleanModel(FakeCleaner())
+    model.load(cleanIndex())
+    let open = model.report!.groups[0].items.first { $0.candidate.name == "com.open" }!
+    model.toggle(open)
+    #expect(!model.isSelected(open))
+}
+
+@MainActor
+@Test func userCanTickAndUntick() {
+    let model = cleanModel(FakeCleaner())
+    model.load(cleanIndex())
+    let logs = model.report!.groups.first { $0.category == "Logs" }!.items[0]
+    model.toggle(logs)
+    #expect(model.selectedSize == 1200)
+    model.toggle(logs)
+    #expect(model.selectedSize == 900)
+}
+
+@MainActor
+@Test func cleanSendsOnlyTickedItemsToTheEngine() async {
+    let cleaner = FakeCleaner()
+    let model = cleanModel(cleaner)
+    model.load(cleanIndex())
+    await model.clean()
+    #expect(cleaner.cleaned == [["\(cleanHome)/Library/Caches/com.big"]])
+    guard case .done(let lines) = model.state else { Issue.record("expected done"); return }
+    #expect(lines.map(\.status) == [.trashed])
+    #expect(model.freedBytes == 900)
+}
+
+@MainActor
+@Test func refusalsAreShownAndNotCountedAsFreed() async {
+    let cleaner = FakeCleaner()
+    cleaner.refuse = ["\(cleanHome)/Library/Caches/com.big"]
+    let model = cleanModel(cleaner)
+    model.load(cleanIndex())
+    await model.clean()
+    guard case .done(let lines) = model.state, case .skipped(let why) = lines[0].status else {
+        Issue.record("expected a skipped line"); return
+    }
+    #expect(why.contains("changed"))
+    #expect(model.freedBytes == 0)
+}
+
+@MainActor
+@Test func nothingTickedMeansNothingIsCleaned() async {
+    let cleaner = FakeCleaner()
+    let model = cleanModel(cleaner)
+    model.load(cleanIndex())
+    model.toggle(model.selectedItems[0])
+    await model.clean()
+    #expect(cleaner.cleaned.isEmpty)
+    guard case .ready = model.state else { Issue.record("should stay on the review"); return }
+}
+
+@MainActor
+@Test func missingRulesShowAnError() {
+    let model = CleanupViewModel(analyzer: nil, loadError: "no rules", cleaner: FakeCleaner())
+    model.load(cleanIndex())
+    #expect(model.state == .failed("no rules"))
+}
+
+@MainActor
+@Test func cleanUsesTheFingerprintsTakenAtReview() async {
+    let cleaner = FakeCleaner()
+    let model = cleanModel(cleaner)
+    model.load(cleanIndex())
+    await model.clean()
+    // One fingerprint per item at review time, none taken again while cleaning.
+    #expect(cleaner.requested.count == 3)
+    #expect(cleaner.cleaned == [["\(cleanHome)/Library/Caches/com.big"]])
+}

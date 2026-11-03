@@ -9,6 +9,7 @@ struct ScanView: View {
     @State private var selection: String?
     @State private var quickLookURL: URL?
     @State private var showChart = false
+    @State private var showCleanup = false
     private let chartDepth = 4
 
     var body: some View {
@@ -33,6 +34,9 @@ struct ScanView: View {
         }
         .task { await model.loadLastScan(root: location.url) }
         .quickLookPreview($quickLookURL)
+        .sheet(isPresented: $showCleanup) {
+            if let index = model.index { CleanupView(index: index) }
+        }
         .navigationTitle(location.name)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -47,6 +51,11 @@ struct ScanView: View {
                 }
                 .pickerStyle(.segmented)
                 .help("List or chart")
+            }
+            ToolbarItem {
+                Button("Review cleanup") { showCleanup = true }
+                    .disabled(model.index == nil || model.isScanning)
+                    .help("See what could be cleaned")
             }
             ToolbarItem {
                 if model.isScanning {
