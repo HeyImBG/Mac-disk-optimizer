@@ -109,6 +109,17 @@ final class CleanupViewModel {
         if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
     }
 
+    /// The warning shown under an item, or nil when it needs none. Every item that is not ticked
+    /// for the user says why, so an unticked "safe" cache is never left unexplained.
+    static func note(for item: CleanupItem) -> String? {
+        if item.appRunning { return "This app is open. Quit it to clean this." }
+        if item.candidate.risk != .safe { return "Take a look first: this is not ticked for you." }
+        if !item.preselected {
+            return "No installed app owns this, so a background service may still be using it. Take a look first: this is not ticked for you."
+        }
+        return nil
+    }
+
     var selectedItems: [CleanupItem] {
         (report?.groups.flatMap(\.items) ?? []).filter { selected.contains($0.id) && !$0.appRunning }
     }
