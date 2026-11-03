@@ -40,3 +40,31 @@ private struct FakeSnapshots: SnapshotProvider {
         Issue.record("expected failed state"); return
     }
 }
+
+private struct FakeReader: ProtectedPathReader {
+    var result: ProbeResult
+    func probe(path: String) -> ProbeResult { result }
+}
+
+@MainActor
+private func makeOnboarding(_ result: ProbeResult, opener: @escaping (URL) -> Bool = { _ in true })
+    -> OnboardingViewModel {
+    OnboardingViewModel(
+        checker: FullDiskAccessChecker(reader: FakeReader(result: result), paths: ["/x"]),
+        opener: opener)
+}
+
+@MainActor
+@Test func onboardingShownUntilAccessGranted() {
+    #expect(makeOnboarding(.denied).needsOnboarding)
+    #expect(makeOnboarding(.missing).needsOnboarding)
+    #expect(!makeOnboarding(.readable).needsOnboarding)
+}
+
+@MainActor
+@Test func onboardingOpensSettingsLink() {
+    var opened: [URL] = []
+    let model = makeOnboarding(.denied) { opened.append($0); return true }
+    #expect(model.openSettings() == FullDiskAccessLinks.urls[0])
+    #expect(opened.count == 1)
+}
