@@ -12,7 +12,7 @@ struct DiskOptimizerApp: App {
 
 struct ContentView: View {
     @State private var onboarding = OnboardingViewModel()
-    @State private var location = ScanLocation.defaults[0]
+    @State private var location: ScanLocation? = ScanLocation.defaults[0]
 
     var body: some View {
         if onboarding.needsOnboarding {
@@ -33,7 +33,11 @@ struct ContentView: View {
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
-            ScanView(location: location).id(location.id)
+            if let location {
+                ScanView(location: location).id(location.id)
+            } else {
+                Text("Choose a location in the sidebar.").foregroundStyle(.secondary)
+            }
         }
     }
 }
