@@ -112,10 +112,11 @@ public struct ScanStore: Sendable {
                 db, sql: "SELECT path, parentPath, name, isDirectory, size, fileCount FROM nodes WHERE scanId = ?",
                 arguments: [id])
             while let row = try rows.next() {
+                // A cursor reuses one Row object, so keep copies.
                 if let parent: String = row["parentPath"] {
-                    kidsByParent[parent, default: []].append(row)
+                    kidsByParent[parent, default: []].append(row.copy())
                 } else {
-                    rootRow = row
+                    rootRow = row.copy()
                 }
             }
             guard let rootRow else { return nil }
