@@ -13,6 +13,9 @@ public struct ItemFingerprint: Sendable, Equatable, Codable {
     public let fileCount: Int
     /// Newest modification time of the item and everything inside it (seconds since 1970).
     public let newestModified: Double
+    /// Wrapping sum of every modification time in milliseconds. Catches an older file being edited,
+    /// which the newest time alone would miss.
+    public var modifiedSum: Int64 = 0
 }
 
 public struct CleanupRequest: Sendable, Equatable {
@@ -118,11 +121,12 @@ public struct CleanupEngine: Sendable {
     public func fingerprint(of path: String) -> ItemFingerprint? {
         guard let root = FileStat(path: path), root.kind != .symlink else { return nil }
         if root.kind == .other {
-            return ItemFingerprint(isDirectory: false, size: root.allocated, fileCount: 1, newestModified: root.modified)
+            return ItemFingerprint(isDirectory: false, size: root.allocated, fileCount: 1, newestModified: root.modified,
+                                   modifiedSum: Self.millis(root.modified))
         }
-        var total = root.allocated, files = 0, newest = root.modified
-        walk(path, dev: root.dev, total: &total, files: &files, newest: &newest)
-        return ItemFingerprint(isDirectory: true, size: total, fileCount: files, newestModified: newest)
+        var total = root.allocated, files = 0, newest = root.modified, sum = Self.millis(root.modified)
+        walk(path, dev: root.dev, total: &total, files: &files, newest: &newest, sum: &sum)
+        return ItemFingerprint(isDirectory: true, size: total, fileCount: files, newestModified: newest, modifiedSum: sum)
     }
 
     /// A request for a suggestion, fingerprinted right now. Call this when the user reviews the item.
@@ -132,7 +136,9 @@ public struct CleanupEngine: Sendable {
         }
     }
 
-    private func walk(_ path: String, dev: Int64, total: inout Int64, files: inout Int, newest: inout Double) {
+    private static func millis(_ t: Double) -> Int64 { Int64(t * 1000) }
+
+    private func walk(_ path: String, dev: Int64, total: inout Int64, files: inout Int, newest: inout Double, sum: inout Int64) {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: path) else { return }
         for name in names {
             let child = path == "/" ? "/" + name : path + "/" + name
@@ -140,8 +146,9 @@ public struct CleanupEngine: Sendable {
             if st.kind == .directory && st.dev != dev { continue }
             total += st.allocated
             newest = max(newest, st.modified)
+            sum = sum &+ Self.millis(st.modified)
             if st.kind == .directory {
-                walk(child, dev: dev, total: &total, files: &files, newest: &newest)
+                walk(child, dev: dev, total: &total, files: &files, newest: &newest, sum: &sum)
             } else {
                 files += 1
             }
