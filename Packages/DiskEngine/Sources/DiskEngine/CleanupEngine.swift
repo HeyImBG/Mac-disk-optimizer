@@ -229,6 +229,18 @@ public struct CleanupEngine: Sendable {
         for folder in protectedFolders.map(CleanupEngine.key) where p == folder || folder.hasPrefix(p + "/") {
             return true
         }
+        return CleanupEngine.isProtectedByName(p)
+    }
+
+    /// Protected wherever they are: a Photos library and anything inside it, anything inside an
+    /// app bundle (the bundle itself may still be trashed), and iCloud placeholder files.
+    static func isProtectedByName(_ path: String) -> Bool {
+        let parts = key(path).split(separator: "/")
+        for (i, part) in parts.enumerated() {
+            if part.hasSuffix(".photoslibrary") || part.hasSuffix(".photolibrary") { return true }
+            if part.hasSuffix(".app") && i < parts.count - 1 { return true }
+        }
+        if let last = parts.last, last.hasPrefix("."), last.hasSuffix(".icloud") { return true }
         return false
     }
 
@@ -239,9 +251,10 @@ public struct CleanupEngine: Sendable {
         s.precomposedStringWithCanonicalMapping.lowercased()
     }
 
-    /// Absolute, no empty, `.` or `..` parts, no trailing slash.
+    /// Absolute, no empty, `.` or `..` parts, no trailing slash, no NUL.
     static func isCleanAbsolute(_ path: String) -> Bool {
-        guard path.hasPrefix("/"), path.count > 1 else { return false }
+        // A NUL would cut the path short when it reaches the file system, so it is never clean.
+        guard path.hasPrefix("/"), path.count > 1, !path.contains("\u{0}") else { return false }
         return path.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
             .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
     }

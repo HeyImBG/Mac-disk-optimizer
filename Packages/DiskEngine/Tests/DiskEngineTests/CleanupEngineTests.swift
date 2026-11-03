@@ -141,7 +141,8 @@ private func refusal(_ results: [CleanupResult]) -> CleanupRefusal? {
     let e = engine(box, trasher: RecordingTrasher())
     let fp = ItemFingerprint(isDirectory: false, size: 1, fileCount: 1, newestModified: 0)
     for bad in ["relative/path", "", "/", box.home + "/Library/Caches/../../Documents",
-                box.home + "/Library/Caches/", box.home + "//Library/Caches/x", box.home + "/Library/./Caches/x"] {
+                box.home + "/Library/Caches/", box.home + "//Library/Caches/x", box.home + "/Library/./Caches/x",
+                box.home + "/Documents\u{0}", box.home + "/Library/Caches/x\u{0}/y"] {
         let r = e.clean([CleanupRequest(path: bad, bundleId: nil, fingerprint: fp)])
         #expect(refusal(r) == .badPath, "\(bad)")
     }
@@ -346,4 +347,42 @@ private func refusal(_ results: [CleanupResult]) -> CleanupRefusal? {
     let gone = CleanupCandidate(ruleId: "r", path: folder + "/nope", name: "nope", isDirectory: false, size: 1,
                                 category: "c", risk: .safe, reason: "r", bundleId: nil)
     #expect(e.makeRequest(for: gone) == nil)
+}
+
+@Test func refusesPhotosLibrariesAppBundleInsidesAndICloudPlaceholders() throws {
+    let box = try Sandbox()
+    try box.write("Pictures/Photos Library.photoslibrary/database/Photos.sqlite")
+    try box.write("Pictures/Old.photolibrary/AlbumData.xml")
+    try box.write("Applications/Tool.app/Contents/Resources/big.bin")
+    try box.write("Projects/Thing.app/Contents/MacOS/Thing")
+    try box.write("Projects/.report.pdf.icloud")
+    let e = engine(box, trasher: RecordingTrasher())
+    let protected = [
+        box.home + "/Pictures/Photos Library.photoslibrary",
+        box.home + "/Pictures/Photos Library.photoslibrary/database/Photos.sqlite",
+        box.home + "/Pictures/Old.photolibrary/AlbumData.xml",
+        box.home + "/Applications/Tool.app/Contents/Resources/big.bin",
+        box.home + "/Projects/Thing.app/Contents",
+        box.home + "/PROJECTS/THING.APP/Contents/MacOS/Thing",
+        box.home + "/Projects/.report.pdf.icloud",
+    ]
+    for path in protected {
+        let fp = try #require(e.fingerprint(of: path))
+        let r = e.clean([CleanupRequest(path: path, bundleId: nil, fingerprint: fp)])
+        #expect(refusal(r) == .protectedPath, "\(path)")
+    }
+    #expect(box.exists(box.home + "/Pictures/Photos Library.photoslibrary/database/Photos.sqlite"))
+}
+
+@Test func aWholeAppBundleInTheHomeFolderCanStillBeTrashed() throws {
+    let box = try Sandbox()
+    try box.write("Projects/Thing.app/Contents/MacOS/Thing")
+    let e = engine(box)
+    let path = box.home + "/Projects/Thing.app"
+    let r = e.clean([try request(e, path)])
+    guard case .trashed = r.first?.outcome else {
+        Issue.record("expected trashed, got \(String(describing: r.first?.outcome))")
+        return
+    }
+    #expect(!box.exists(path))
 }
