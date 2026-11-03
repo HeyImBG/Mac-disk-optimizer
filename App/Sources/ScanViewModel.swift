@@ -118,8 +118,8 @@ final class ScanViewModel {
     }
 
     func goUp() {
-        guard canGoUp, let currentPath else { return }
-        currentPath = URL(fileURLWithPath: currentPath).deletingLastPathComponent().path
+        guard canGoUp, let here = currentPath else { return }
+        currentPath = URL(fileURLWithPath: here).deletingLastPathComponent().path
     }
 
     /// Choosing the active column flips its direction; a new column starts with its natural one
