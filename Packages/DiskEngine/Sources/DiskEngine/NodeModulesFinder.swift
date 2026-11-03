@@ -36,11 +36,24 @@ public struct NodeModulesFinder: Sendable {
 
     /// Largest first. With `requireLockfile` (the default), projects without a lockfile are left out,
     /// because nothing could rebuild their dependencies exactly.
-    /// Does not look inside app bundles, photo libraries, the Trash or `~/Library`, and does not look
-    /// inside a `node_modules` folder (so nested ones are not counted twice).
+    /// Only looks inside the home folder (everything else is refused by `CleanupEngine` anyway, and
+    /// holds things like global npm packages). Does not look inside hidden folders (`~/.vscode`,
+    /// `~/.nvm` and other tools keep `node_modules` there that `npm install` would not restore),
+    /// app bundles, photo libraries, the Trash or `~/Library`, and does not look inside a
+    /// `node_modules` folder (so nested ones are not counted twice).
     public func find(in index: ScanIndex, requireLockfile: Bool = true) -> [NodeModulesProject] {
         var found: [NodeModulesProject] = []
-        var stack = [index.root]
+        let root = index.root
+        let start: FileNode?
+        if root.path == home || root.path.hasPrefix(home + "/") {
+            start = root
+        } else if home.hasPrefix(root.path == "/" ? "/" : root.path + "/") {
+            start = index.node(at: home)
+        } else {
+            start = nil
+        }
+        guard let start, !isHiddenBelowHome(start.path) else { return [] }
+        var stack = [start]
         while let folder = stack.popLast() {
             for child in folder.children where child.isDirectory {
                 if child.name == "node_modules" {
@@ -74,7 +87,13 @@ public struct NodeModulesFinder: Sendable {
 
     private func isSkipped(_ node: FileNode) -> Bool {
         let name = node.name.lowercased()
-        return name.hasSuffix(".app") || name.hasSuffix(".photoslibrary") || name.hasSuffix(".photolibrary")
-            || node.name == ".Trash" || node.path == home + "/Library"
+        return node.name.hasPrefix(".") || name.hasSuffix(".app") || name.hasSuffix(".photoslibrary") || name.hasSuffix(".photolibrary")
+            || node.path == home + "/Library"
+    }
+
+    /// A scan started inside a hidden folder of home, such as `~/.vscode/extensions`.
+    private func isHiddenBelowHome(_ path: String) -> Bool {
+        guard path.hasPrefix(home + "/") else { return false }
+        return path.dropFirst(home.count + 1).split(separator: "/").contains { $0.hasPrefix(".") }
     }
 }
