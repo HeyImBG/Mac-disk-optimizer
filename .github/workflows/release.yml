@@ -1,10 +1,14 @@
 name: Release
 # Push a tag like v0.1.0 to build an ad-hoc signed app and attach it to a GitHub release.
-# "Run workflow" by hand only builds and keeps the zip as a workflow artifact; it publishes nothing.
+# "Run workflow" by hand, or a pull request that edits this file, only builds and keeps the zip as a
+# workflow artifact; it publishes nothing.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  # Builds (never publishes) when this file itself changes, so a broken edit shows up on its pull request.
+  pull_request:
+    paths: [".github/workflows/release.yml"]
 
 permissions:
   contents: read
