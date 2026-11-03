@@ -239,11 +239,14 @@ private struct FakeApps: RunningAppProvider {
 private final class FakeCleaner: Cleaner, @unchecked Sendable {
     private let lock = NSLock()
     private var _cleaned: [[String]] = []
+    private var _requested: [String] = []
     var refuse: Set<String> = []
     var cleaned: [[String]] { lock.lock(); defer { lock.unlock() }; return _cleaned }
+    var requested: [String] { lock.lock(); defer { lock.unlock() }; return _requested }
 
     func makeRequest(for candidate: CleanupCandidate) -> CleanupRequest? {
-        CleanupRequest(path: candidate.path, bundleId: candidate.bundleId,
+        lock.lock(); _requested.append(candidate.path); lock.unlock()
+        return CleanupRequest(path: candidate.path, bundleId: candidate.bundleId,
                        fingerprint: ItemFingerprint(isDirectory: true, size: candidate.size, fileCount: 1, newestModified: 0))
     }
 
@@ -355,4 +358,15 @@ private func cleanModel(_ cleaner: FakeCleaner, running: Set<String> = ["com.ope
     let model = CleanupViewModel(analyzer: nil, loadError: "no rules", cleaner: FakeCleaner())
     model.load(cleanIndex())
     #expect(model.state == .failed("no rules"))
+}
+
+@MainActor
+@Test func cleanUsesTheFingerprintsTakenAtReview() async {
+    let cleaner = FakeCleaner()
+    let model = cleanModel(cleaner)
+    model.load(cleanIndex())
+    await model.clean()
+    // One fingerprint per item at review time, none taken again while cleaning.
+    #expect(cleaner.requested.count == 3)
+    #expect(cleaner.cleaned == [["\(cleanHome)/Library/Caches/com.big"]])
 }
