@@ -372,3 +372,31 @@ private func cleanModel(_ cleaner: FakeCleaner, running: Set<String> = ["com.ope
     #expect(cleaner.requested.count == 3)
     #expect(cleaner.cleaned == [["\(cleanHome)/Library/Caches/com.big"]])
 }
+
+// MARK: - Release review (T29)
+
+@MainActor
+@Test func everyUntickedItemSaysWhy() {
+    let apps = FakeApps(ids: ["com.open"], notInstalled: ["com.big"])
+    let model = CleanupViewModel(analyzer: CachesAnalyzer(rules: cleanRules, runningApps: apps, home: cleanHome),
+                                 cleaner: FakeCleaner())
+    model.load(cleanIndex())
+    let items = model.report!.groups.flatMap(\.items)
+    #expect(model.selectedItems.isEmpty)   // com.big has no installed owner, so nothing starts ticked
+    for item in items where !model.isSelected(item) {
+        #expect(CleanupViewModel.note(for: item) != nil, "\(item.candidate.name) is unticked with no reason")
+    }
+    let big = items.first { $0.candidate.name == "com.big" }!
+    #expect(CleanupViewModel.note(for: big)!.contains("background service"))
+    let open = items.first { $0.candidate.name == "com.open" }!
+    #expect(CleanupViewModel.note(for: open)!.contains("Quit it"))
+}
+
+@MainActor
+@Test func aTickedSafeItemHasNoWarning() {
+    let model = cleanModel(FakeCleaner())
+    model.load(cleanIndex())
+    let big = model.report!.groups.flatMap(\.items).first { $0.candidate.name == "com.big" }!
+    #expect(model.isSelected(big))
+    #expect(CleanupViewModel.note(for: big) == nil)
+}

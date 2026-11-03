@@ -69,10 +69,8 @@ struct CleanupView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.candidate.name)
                 Text(item.candidate.reason).font(.caption).foregroundStyle(.secondary)
-                if item.appRunning {
-                    Text("This app is open. Quit it to clean this.").font(.caption).foregroundStyle(.orange)
-                } else if item.candidate.risk != .safe {
-                    Text("Take a look first: this is not ticked for you.").font(.caption).foregroundStyle(.orange)
+                if let note = CleanupViewModel.note(for: item) {
+                    Text(note).font(.caption).foregroundStyle(.orange)
                 }
             }
             Spacer()
