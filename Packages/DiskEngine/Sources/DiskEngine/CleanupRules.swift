@@ -24,7 +24,7 @@ public struct CleanupRule: Codable, Sendable, Equatable, Identifiable {
     public let bundleId: String?
     /// Use the matched folder's name as the bundle id (for `~/Library/Caches/<bundle id>`).
     public let bundleIdFromFolder: Bool?
-    /// Names of matched items to skip.
+    /// Names of matched items to skip. `*` works as in `pattern`, for example `com.apple.*`.
     public let excludeNames: [String]?
     /// Set to false to keep a rule in the file but switch it off (for example while unverified).
     public let enabled: Bool?
@@ -147,8 +147,8 @@ public struct RuleEngine: Sendable {
         for segment in segments[literal...] {
             level = level.flatMap { parent in parent.children.filter { RuleEngine.glob(segment, $0.name) } }
         }
-        let excluded = Set(rule.excludeNames ?? [])
-        return level.filter { !excluded.contains($0.name) }
+        let excluded = rule.excludeNames ?? []
+        return level.filter { node in !excluded.contains { RuleEngine.glob($0, node.name) } }
     }
 
     /// `*` matches any run of characters (including none) inside one name.

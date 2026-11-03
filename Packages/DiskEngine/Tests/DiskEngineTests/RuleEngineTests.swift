@@ -57,6 +57,24 @@ private func engine(_ rules: [CleanupRule]) -> RuleEngine {
     #expect(found[0].path == "\(home)/Library/Caches/com.example.big")
 }
 
+@Test func excludedNamesMatchWildcards() {
+    let rule = CleanupRule(id: "caches", pattern: "~/Library/Caches/*", category: "App caches", risk: .safe,
+                           reason: "Rebuilt by the app.", bundleIdFromFolder: true, excludeNames: ["com.example.b*"])
+    #expect(engine([rule]).candidates(in: fixture()).map(\.name) == ["com.example.small"])
+}
+
+@Test func bundledRulesSkipAppleSystemCaches() throws {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().appendingPathComponent("../../../../App/Resources/cleanup-rules.json")
+    let rules = try RuleSet.decode(Data(contentsOf: url))
+    let caches = try #require(rules.rules.first { $0.id == "user-app-caches" })
+    let excluded = caches.excludeNames ?? []
+    for name in ["com.apple.Safari", "CloudKit", "GeoServices"] {
+        #expect(excluded.contains { RuleEngine.glob($0, name) })
+    }
+    #expect(!excluded.contains { RuleEngine.glob($0, "com.spotify.client") })
+}
+
 @Test func excludedNamesAreSkipped() {
     let found = engine([logRule]).candidates(in: fixture())
     #expect(found.map(\.name) == ["app.log"])

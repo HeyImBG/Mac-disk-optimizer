@@ -7,7 +7,26 @@
       "category": "App caches",
       "risk": "safe",
       "reason": "Apps rebuild their cache files when they need them, so removing them frees space without losing your data. The first launch afterwards can be a little slower.",
-      "bundleIdFromFolder": true
+      "bundleIdFromFolder": true,
+      "excludeNames": [
+        "com.apple.*",
+        "AMSDataMigratorTool",
+        "Animoji",
+        "CloudKit",
+        "FamilyCircle",
+        "familycircled",
+        "GameKit",
+        "GeoServices",
+        "PassKit",
+        "SharedImageCache",
+        "SiriEntityCache",
+        "SiriTTS",
+        "askpermissiond",
+        "icloudmailagent",
+        "mbuseragent",
+        "softwareupdate",
+        "tvapp_bag"
+      ]
     },
     {
       "id": "user-logs",
