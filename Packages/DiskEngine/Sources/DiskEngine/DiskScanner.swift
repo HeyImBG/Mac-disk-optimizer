@@ -157,6 +157,8 @@ struct FileStat: Sendable {
     let ino: UInt64
     let nlink: UInt64
     let allocated: Int64
+    /// Modification time in seconds since 1970, with nanoseconds.
+    let modified: Double
 
     init?(path: String) {
         var st = stat()
@@ -167,6 +169,11 @@ struct FileStat: Sendable {
         ino = UInt64(st.st_ino)
         nlink = UInt64(st.st_nlink)
         allocated = Int64(st.st_blocks) * 512
+        #if canImport(Darwin)
+        modified = Double(st.st_mtimespec.tv_sec) + Double(st.st_mtimespec.tv_nsec) / 1e9
+        #else
+        modified = Double(st.st_mtim.tv_sec) + Double(st.st_mtim.tv_nsec) / 1e9
+        #endif
     }
 }
 
