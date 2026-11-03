@@ -8,15 +8,27 @@ struct ScanView: View {
     @State private var model = ScanViewModel()
     @State private var selection: String?
     @State private var quickLookURL: URL?
+    @State private var showChart = false
+    private let chartDepth = 4
 
     var body: some View {
         VStack(spacing: 0) {
             statusBar
             Divider()
-            sortHeader
+            breadcrumbBar
             Divider()
-            List(model.rows, selection: $selection) { node in
-                row(node)
+            if showChart {
+                SunburstView(
+                    arcs: model.chartArcs, maxDepth: chartDepth,
+                    onSelect: { arc in if arc.isDirectory { model.navigate(to: arc.path) } },
+                    onCenter: { model.goUp() })
+                    .padding(12)
+            } else {
+                sortHeader
+                Divider()
+                List(model.rows, selection: $selection) { node in
+                    row(node)
+                }
             }
         }
         .quickLookPreview($quickLookURL)
@@ -26,6 +38,14 @@ struct ScanView: View {
                 Button { model.goUp() } label: { Image(systemName: "chevron.up") }
                     .help("Up one folder")
                     .disabled(!model.canGoUp)
+            }
+            ToolbarItem {
+                Picker("View", selection: $showChart) {
+                    Image(systemName: "list.bullet").tag(false)
+                    Image(systemName: "chart.pie").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .help("List or chart")
             }
             ToolbarItem {
                 if model.isScanning {
@@ -59,6 +79,22 @@ struct ScanView: View {
         }
         .font(.callout)
         .padding(10)
+    }
+
+    @ViewBuilder private var breadcrumbBar: some View {
+        let crumbs = model.breadcrumbs
+        if !crumbs.isEmpty {
+            HStack(spacing: 4) {
+                ForEach(Array(crumbs.enumerated()), id: \.element.id) { offset, crumb in
+                    if offset > 0 { Image(systemName: "chevron.right").font(.caption2) }
+                    Button(crumb.name) { model.navigate(to: crumb.path) }
+                        .buttonStyle(.link)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+        }
     }
 
     private var sortHeader: some View {

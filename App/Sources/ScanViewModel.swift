@@ -14,6 +14,12 @@ enum SortKey: Equatable {
     case name
 }
 
+struct Crumb: Equatable, Identifiable {
+    let name: String
+    let path: String
+    var id: String { path }
+}
+
 struct ScanLocation: Identifiable, Hashable {
     let name: String
     let url: URL
@@ -76,6 +82,27 @@ final class ScanViewModel {
         return ascending ? sorted.reversed() : sorted
     }
 
+    /// Path from the scan root down to the folder being shown, for the breadcrumb bar.
+    var breadcrumbs: [Crumb] {
+        guard let index, let currentPath else { return [] }
+        var crumbs: [Crumb] = []
+        var path = currentPath
+        while path != index.root.path {
+            crumbs.append(Crumb(name: URL(fileURLWithPath: path).lastPathComponent, path: path))
+            let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            if parent == path { break }
+            path = parent
+        }
+        crumbs.append(Crumb(name: index.root.name, path: index.root.path))
+        return crumbs.reversed()
+    }
+
+    /// Chart slices for the folder being shown.
+    var chartArcs: [SunburstArc] {
+        guard let index, let currentPath, let node = index.node(at: currentPath) else { return [] }
+        return SunburstLayout.arcs(for: node)
+    }
+
     // MARK: - Scanning
 
     /// Starts a scan in the background, replacing any scan in progress.
@@ -115,6 +142,12 @@ final class ScanViewModel {
     func open(_ node: FileNode) {
         guard node.isDirectory else { return }
         currentPath = node.path
+    }
+
+    /// Jumps to a folder that exists in the scan (used by the breadcrumb and the chart).
+    func navigate(to path: String) {
+        guard let index, index.node(at: path)?.isDirectory == true else { return }
+        currentPath = path
     }
 
     func goUp() {

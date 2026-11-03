@@ -151,3 +151,30 @@ private func scanned(events: [ScanEvent]? = nil) async -> ScanViewModel {
     #expect(model.state == .failed("Cannot read /nope"))
     #expect(model.rows.isEmpty)
 }
+
+@MainActor
+@Test func breadcrumbsAndNavigate() async throws {
+    let model = await scanned()
+    #expect(model.breadcrumbs == [Crumb(name: "r", path: "/r")])
+    model.navigate(to: "/r/sub")
+    #expect(model.breadcrumbs == [Crumb(name: "r", path: "/r"), Crumb(name: "sub", path: "/r/sub")])
+    model.navigate(to: "/r")
+    #expect(model.currentPath == "/r")
+}
+
+@MainActor
+@Test func navigateIgnoresFilesAndUnknownPaths() async {
+    let model = await scanned()
+    model.navigate(to: "/r/a.txt")
+    #expect(model.currentPath == "/r")
+    model.navigate(to: "/nope")
+    #expect(model.currentPath == "/r")
+}
+
+@MainActor
+@Test func chartArcsFollowCurrentFolder() async throws {
+    let model = await scanned()
+    #expect(model.chartArcs.filter { $0.depth == 1 }.count == 3)
+    model.navigate(to: "/r/sub")
+    #expect(model.chartArcs.map(\.name) == ["z.bin"])
+}
