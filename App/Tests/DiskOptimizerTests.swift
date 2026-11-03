@@ -178,3 +178,53 @@ private func scanned(events: [ScanEvent]? = nil) async -> ScanViewModel {
     model.navigate(to: "/r/sub")
     #expect(model.chartArcs.map(\.name) == ["z.bin"])
 }
+
+// MARK: - Saved scans
+
+private final class FakeStore: ScanPersisting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var saved: [ScanIndex] = []
+    var stored: ScanIndex?
+
+    var savedCount: Int { lock.withLock { saved.count } }
+
+    func save(_ index: ScanIndex) throws { lock.withLock { saved.append(index) } }
+    func loadLatest(rootPath: String) throws -> ScanIndex? { stored }
+}
+
+@MainActor
+@Test func finishedScanIsSaved() async {
+    let store = FakeStore()
+    let finished = ScanEvent.finished(ScanResult(index: sampleIndex()))
+    let model = ScanViewModel(runner: FakeRunner(events: [finished]), store: store)
+    await model.scan(root: URL(fileURLWithPath: "/r"))
+    #expect(store.savedCount == 1)
+}
+
+@MainActor
+@Test func lastScanLoadsWithoutScanning() async {
+    let store = FakeStore()
+    store.stored = sampleIndex()
+    let model = ScanViewModel(runner: FakeRunner(events: []), store: store)
+    await model.loadLastScan(root: URL(fileURLWithPath: "/r"))
+    #expect(model.state == .finished(unreadable: 0))
+    #expect(model.rows.map(\.name) == ["b.txt", "a.txt", "sub"])
+}
+
+@MainActor
+@Test func lastScanDoesNotReplaceAFreshScan() async {
+    let store = FakeStore()
+    store.stored = ScanIndex(root: FileNode(name: "old", path: "/old", isDirectory: true))
+    let finished = ScanEvent.finished(ScanResult(index: sampleIndex()))
+    let model = ScanViewModel(runner: FakeRunner(events: [finished]), store: store)
+    await model.scan(root: URL(fileURLWithPath: "/r"))
+    await model.loadLastScan(root: URL(fileURLWithPath: "/r"))
+    #expect(model.currentPath == "/r")
+}
+
+@MainActor
+@Test func missingSavedScanLeavesIdle() async {
+    let model = ScanViewModel(runner: FakeRunner(events: []), store: FakeStore())
+    await model.loadLastScan(root: URL(fileURLWithPath: "/r"))
+    #expect(model.state == .idle)
+}

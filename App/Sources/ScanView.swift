@@ -5,7 +5,7 @@ import DiskEngine
 
 struct ScanView: View {
     let location: ScanLocation
-    @State private var model = ScanViewModel()
+    @State private var model = ScanViewModel(store: AppStore.shared)
     @State private var selection: String?
     @State private var quickLookURL: URL?
     @State private var showChart = false
@@ -31,6 +31,7 @@ struct ScanView: View {
                 }
             }
         }
+        .task { await model.loadLastScan(root: location.url) }
         .quickLookPreview($quickLookURL)
         .navigationTitle(location.name)
         .toolbar {
