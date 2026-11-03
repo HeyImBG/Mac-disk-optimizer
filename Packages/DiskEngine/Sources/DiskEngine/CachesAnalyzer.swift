@@ -62,21 +62,26 @@ public struct CachesAnalyzer: Sendable {
     private let engine: RuleEngine
     private let runningApps: any RunningAppProvider
     private let nodeModules: NodeModulesFinder?
+    private let installers: OldInstallerFinder?
 
-    /// Pass a `NodeModulesFinder` to also suggest `node_modules` folders of untouched projects.
+    /// Pass a `NodeModulesFinder` to also suggest `node_modules` folders of untouched projects, and an
+    /// `OldInstallerFinder` to also suggest old installers and zip files in Downloads.
     public init(rules: RuleSet, runningApps: any RunningAppProvider = SystemRunningApps(),
-                home: String = NSHomeDirectory(), nodeModules: NodeModulesFinder? = nil) {
+                home: String = NSHomeDirectory(), nodeModules: NodeModulesFinder? = nil,
+                installers: OldInstallerFinder? = nil) {
         self.engine = RuleEngine(ruleSet: rules, home: home)
         self.runningApps = runningApps
         self.nodeModules = nodeModules
+        self.installers = installers
     }
 
     /// Groups are largest first, and so are the items inside them.
     public func analyze(_ index: ScanIndex) -> CleanupReport {
         let running = runningApps.runningBundleIDs()
         var all = engine.candidates(in: index)
-        if let nodeModules {
-            all += nodeModules.candidates(in: index)
+        if let nodeModules { all += nodeModules.candidates(in: index) }
+        if let installers { all += installers.candidates(in: index) }
+        if nodeModules != nil || installers != nil {
             all.sort { $0.size != $1.size ? $0.size > $1.size : $0.path < $1.path }
         }
         let candidates = CachesAnalyzer.withoutNested(all)
