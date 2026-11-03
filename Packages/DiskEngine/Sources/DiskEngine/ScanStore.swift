@@ -9,6 +9,14 @@ public struct StoredScan: Sendable {
     public let index: ScanIndex
 }
 
+/// One saved scan, without its tree. Used to draw a history.
+public struct ScanSummary: Sendable, Equatable, Identifiable {
+    public let id: Int64
+    public let rootPath: String
+    public let createdAt: Date
+    public let totalSize: Int64
+}
+
 /// Saves finished scans to SQLite so the last one can be reopened without rescanning.
 /// This is the app's own database; it never touches user files.
 public struct ScanStore: Sendable {
@@ -101,18 +109,37 @@ public struct ScanStore: Sendable {
         try dbQueue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM scans") ?? 0 }
     }
 
+    /// Saved scans, newest first, without loading their trees. Optionally only for one root folder.
+    public func history(rootPath: String? = nil, limit: Int = 50) throws -> [ScanSummary] {
+        try dbQueue.read { db in
+            let rows: [Row]
+            if let rootPath {
+                rows = try Row.fetchAll(
+                    db, sql: "SELECT id, rootPath, createdAt, totalSize FROM scans WHERE rootPath = ? ORDER BY id DESC LIMIT ?",
+                    arguments: [rootPath, max(1, limit)])
+            } else {
+                rows = try Row.fetchAll(
+                    db, sql: "SELECT id, rootPath, createdAt, totalSize FROM scans ORDER BY id DESC LIMIT ?",
+                    arguments: [max(1, limit)])
+            }
+            return rows.map {
+                ScanSummary(id: $0["id"], rootPath: $0["rootPath"],
+                            createdAt: Date(timeIntervalSince1970: $0["createdAt"]), totalSize: $0["totalSize"])
+            }
+        }
+    }
+
     /// The most recent scan, optionally only for one root folder. Nil if there is none.
     public func loadLatest(rootPath: String? = nil) throws -> StoredScan? {
+        guard let latest = try history(rootPath: rootPath, limit: 1).first else { return nil }
+        return try load(id: latest.id)
+    }
+
+    /// One saved scan by id. Nil if it was pruned.
+    public func load(id scanId: Int64) throws -> StoredScan? {
         try dbQueue.read { db in
-            let scanRow: Row?
-            if let rootPath {
-                scanRow = try Row.fetchOne(
-                    db, sql: "SELECT id, rootPath, createdAt FROM scans WHERE rootPath = ? ORDER BY id DESC LIMIT 1",
-                    arguments: [rootPath])
-            } else {
-                scanRow = try Row.fetchOne(
-                    db, sql: "SELECT id, rootPath, createdAt FROM scans ORDER BY id DESC LIMIT 1")
-            }
+            let scanRow = try Row.fetchOne(
+                db, sql: "SELECT id, rootPath, createdAt FROM scans WHERE id = ?", arguments: [scanId])
             guard let scanRow else { return nil }
             let id: Int64 = scanRow["id"]
             let root: String = scanRow["rootPath"]
