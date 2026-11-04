@@ -400,3 +400,77 @@ private func cleanModel(_ cleaner: FakeCleaner, running: Set<String> = ["com.ope
     #expect(model.isSelected(big))
     #expect(CleanupViewModel.note(for: big) == nil)
 }
+
+// MARK: - What grew and menu bar free space
+
+private struct FakeHistory: ScanHistorySource {
+    var scans: [Int64: ScanIndex]
+    func recentScans(rootPath: String) throws -> [ScanSummary] {
+        scans.keys.sorted(by: >).map {
+            ScanSummary(id: $0, rootPath: rootPath, createdAt: Date(timeIntervalSince1970: Double($0)), totalSize: 0)
+        }
+    }
+    func scanIndex(id: Int64) throws -> ScanIndex? { scans[id] }
+}
+
+private func growthTree(_ size: Int64) -> ScanIndex {
+    ScanIndex(root: FileNode(name: "h", path: "/h", isDirectory: true, children: [
+        FileNode(name: "Games", path: "/h/Games", isDirectory: true, children: [
+            FileNode(name: "g.bin", path: "/h/Games/g.bin", isDirectory: false, size: size)]),
+    ]))
+}
+
+@MainActor
+@Test func growthNeedsTwoScans() async {
+    let model = GrowthViewModel(source: FakeHistory(scans: [1: growthTree(10)]))
+    await model.load(rootPath: "/h")
+    #expect(model.state == .needsTwoScans)
+}
+
+@MainActor
+@Test func growthListsTheFolderThatGrew() async {
+    let model = GrowthViewModel(source: FakeHistory(scans: [1: growthTree(100), 2: growthTree(900_000_000)]))
+    await model.load(rootPath: "/h")
+    guard case .ready(_, _, let changes) = model.state else {
+        Issue.record("expected a comparison")
+        return
+    }
+    #expect(changes.map(\.path) == ["/h/Games"])
+}
+
+@MainActor
+@Test func growthWithoutHistoryFails() async {
+    let model = GrowthViewModel(source: nil)
+    await model.load(rootPath: "/h")
+    guard case .failed = model.state else {
+        Issue.record("expected a failure")
+        return
+    }
+}
+
+@Test func signedSizeShowsDirection() {
+    #expect(GrowthViewModel.signedSize(1_000_000).hasPrefix("+"))
+    #expect(GrowthViewModel.signedSize(-1_000_000).hasPrefix("-"))
+}
+
+private struct FixedVolume: VolumeCapacityProvider {
+    var fails = false
+    func capacities() throws -> VolumeCapacities {
+        if fails { throw VolumeError.capacityUnavailable }
+        return VolumeCapacities(total: 1000, available: 250, availableForImportantUsage: 250)
+    }
+}
+
+@MainActor
+@Test func freeSpaceTitleAndFraction() {
+    let model = FreeSpaceViewModel(provider: FixedVolume())
+    #expect(model.title.hasSuffix("free"))
+    #expect(model.usedFraction == 0.75)
+}
+
+@MainActor
+@Test func freeSpaceFallsBackWhenUnavailable() {
+    let model = FreeSpaceViewModel(provider: FixedVolume(fails: true))
+    #expect(model.title == "Disk")
+    #expect(model.usedFraction == 0)
+}

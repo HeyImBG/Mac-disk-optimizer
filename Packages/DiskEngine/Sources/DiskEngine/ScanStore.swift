@@ -15,6 +15,13 @@ public struct ScanSummary: Sendable, Equatable, Identifiable {
     public let rootPath: String
     public let createdAt: Date
     public let totalSize: Int64
+
+    public init(id: Int64, rootPath: String, createdAt: Date, totalSize: Int64) {
+        self.id = id
+        self.rootPath = rootPath
+        self.createdAt = createdAt
+        self.totalSize = totalSize
+    }
 }
 
 /// Saves finished scans to SQLite so the last one can be reopened without rescanning.

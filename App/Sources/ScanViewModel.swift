@@ -27,7 +27,10 @@ extension ScanStore: ScanPersisting {
 
 enum AppStore {
     /// The app's scan database, or nil if it could not be opened (the app still works without it).
-    static let shared: (any ScanPersisting)? = try? ScanStore.openDefault()
+    private static let store: ScanStore? = try? ScanStore.openDefault()
+    static let shared: (any ScanPersisting)? = store
+    /// The same database, for listing older scans.
+    static let history: (any ScanHistorySource)? = store
 }
 
 enum SortKey: Equatable {
