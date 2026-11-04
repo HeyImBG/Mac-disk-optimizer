@@ -308,6 +308,20 @@ private func cleanModel(_ cleaner: FakeCleaner, running: Set<String> = ["com.ope
 }
 
 @MainActor
+@Test func selectAllSkipsOpenAppsAndDeselectAllClears() {
+    let model = cleanModel(FakeCleaner())
+    model.load(cleanIndex())
+    #expect(!model.allSelected)
+    model.toggleAll()
+    #expect(model.allSelected)
+    #expect(Set(model.selectedItems.map(\.candidate.name)) == ["com.big", "app.log"])   // com.open is running
+    #expect(model.selectedSize == 1200)
+    model.toggleAll()
+    #expect(model.selectedItems.isEmpty)
+    #expect(!model.allSelected)
+}
+
+@MainActor
 @Test func userCanTickAndUntick() {
     let model = cleanModel(FakeCleaner())
     model.load(cleanIndex())

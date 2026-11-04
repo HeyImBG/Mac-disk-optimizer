@@ -109,6 +109,23 @@ final class CleanupViewModel {
         if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
     }
 
+    /// Items that can be ticked: everything except items whose app is open.
+    private var tickable: [CleanupItem] {
+        (report?.groups.flatMap(\.items) ?? []).filter { !$0.appRunning }
+    }
+
+    /// True when every item that can be ticked is ticked.
+    var allSelected: Bool {
+        let ids = tickable.map(\.id)
+        return !ids.isEmpty && ids.allSatisfy { selected.contains($0) }
+    }
+
+    /// Ticks every item that can be ticked, or unticks everything if all already are.
+    /// Items whose app is open stay unticked, and the user still confirms before anything moves.
+    func toggleAll() {
+        selected = allSelected ? [] : Set(tickable.map(\.id))
+    }
+
     /// The warning shown under an item, or nil when it needs none. Every item that is not ticked
     /// for the user says why, so an unticked "safe" cache is never left unexplained.
     static func note(for item: CleanupItem) -> String? {
