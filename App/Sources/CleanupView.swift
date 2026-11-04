@@ -86,6 +86,8 @@ struct CleanupView: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             } else {
                 Text("\(model.selectedItems.count) selected · \(format(model.selectedSize))")
+                Button(model.allSelected ? "Deselect All" : "Select All") { model.toggleAll() }
+                    .disabled(model.report?.isEmpty ?? true)
                 Spacer()
                 Button("Close") { dismiss() }
                 Button("Move to Trash…") { confirming = true }
