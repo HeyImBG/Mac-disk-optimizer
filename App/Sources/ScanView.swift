@@ -21,7 +21,8 @@ struct ScanView: View {
             Divider()
             if showChart {
                 SunburstView(
-                    arcs: model.chartArcs, maxDepth: chartDepth,
+                    arcs: model.chartArcs, centerName: model.chartCenterName, centerSize: model.chartCenterSize,
+                    maxDepth: chartDepth,
                     onSelect: { arc in if arc.isDirectory { model.navigate(to: arc.path) } },
                     onCenter: { model.goUp() })
                     .padding(12)
