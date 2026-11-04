@@ -62,8 +62,8 @@ final class GrowthViewModel {
     }
 
     /// "+1.2 GB" or "-300 MB".
-    static func signedSize(_ delta: Int64) -> String {
-        let text = ScanViewModel.format(abs(delta))
+    nonisolated static func signedSize(_ delta: Int64) -> String {
+        let text = ByteCountFormatter.string(fromByteCount: abs(delta), countStyle: .file)
         return (delta < 0 ? "-" : "+") + text
     }
 }
