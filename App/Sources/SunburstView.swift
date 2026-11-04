@@ -4,11 +4,15 @@ import DiskEngine
 /// Draws the sunburst chart. The center hole goes up one folder; a folder slice drills in.
 struct SunburstView: View {
     let arcs: [SunburstArc]
+    /// Name and size of the folder being shown, written in the center hole.
+    let centerName: String
+    let centerSize: Int64
     let maxDepth: Int
     let onSelect: (SunburstArc) -> Void
     let onCenter: () -> Void
 
     private let innerFraction = 0.18
+    @State private var hovered: SunburstArc?
 
     var body: some View {
         GeometryReader { proxy in
@@ -19,8 +23,24 @@ struct SunburstView: View {
                     context.fill(path, with: .color(Self.color(for: arc)))
                     context.stroke(path, with: .color(.black.opacity(0.25)), lineWidth: 0.5)
                 }
+                if let hovered {
+                    let outline = Self.path(for: hovered, center: geo.center, inner: geo.inner, ring: geo.ring)
+                    context.stroke(outline, with: .color(.white), lineWidth: 2)
+                }
             }
+            .overlay { centerLabel(geo) }
+            .overlay(alignment: .top) { hoverCaption }
             .contentShape(Rectangle())
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    let dx = Double(location.x - geo.center.x)
+                    let dy = Double(location.y - geo.center.y)
+                    hovered = SunburstLayout.hit(in: arcs, dx: dx, dy: dy, innerRadius: geo.inner, ringWidth: geo.ring)
+                case .ended:
+                    hovered = nil
+                }
+            }
             .gesture(
                 SpatialTapGesture().onEnded { tap in
                     let dx = Double(tap.location.x - geo.center.x)
@@ -34,6 +54,36 @@ struct SunburstView: View {
                 }
             )
         }
+    }
+
+    /// Folder name and total in the middle, so it is clear what the whole circle stands for.
+    private func centerLabel(_ geo: Geometry) -> some View {
+        VStack(spacing: 2) {
+            Text(centerName).font(.caption.bold()).lineLimit(1)
+            Text(ByteCountFormatter.string(fromByteCount: centerSize, countStyle: .file)).font(.caption2)
+        }
+        .foregroundStyle(.secondary)
+        .frame(width: geo.inner * 1.7)
+        .position(geo.center)
+        .allowsHitTesting(false)
+    }
+
+    /// Name, size and share of the slice under the pointer, or a hint when nothing is hovered.
+    private var hoverCaption: some View {
+        let text: String
+        if let hovered {
+            text = SunburstLayout.caption(for: hovered, total: centerSize) {
+                ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)
+            }
+        } else {
+            text = "Point at a slice to see what it is. Click a folder to open it, or the middle to go back."
+        }
+        return Text(text)
+            .font(.callout)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(.regularMaterial, in: Capsule())
+            .padding(.top, 4)
+            .allowsHitTesting(false)
     }
 
     struct Geometry {

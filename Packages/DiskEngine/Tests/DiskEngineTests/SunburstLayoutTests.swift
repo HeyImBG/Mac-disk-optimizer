@@ -74,3 +74,14 @@ private let fullCircle = 2 * Double.pi
     #expect(SunburstLayout.hit(in: arcs, dx: 5, dy: 5, innerRadius: 20, ringWidth: 40) == nil)
     #expect(SunburstLayout.hit(in: arcs, dx: 0, dy: -500, innerRadius: 20, ringWidth: 40) == nil)
 }
+
+@Test func captionShowsNameSizeAndShare() {
+    func arc(_ size: Int64) -> SunburstArc {
+        SunburstArc(path: "/r/Downloads", name: "Downloads", isDirectory: true, size: size,
+                    depth: 1, startAngle: 0, endAngle: 1, hue: 0)
+    }
+    let fmt: (Int64) -> String = { "\($0) B" }
+    #expect(SunburstLayout.caption(for: arc(250), total: 1_000, format: fmt) == "Downloads · 250 B · 25%")
+    #expect(SunburstLayout.caption(for: arc(2), total: 1_000, format: fmt) == "Downloads · 2 B · <1%")
+    #expect(SunburstLayout.caption(for: arc(5), total: 0, format: fmt) == "Downloads · 5 B")
+}

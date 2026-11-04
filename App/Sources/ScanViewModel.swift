@@ -129,6 +129,17 @@ final class ScanViewModel {
         return SunburstLayout.arcs(for: node)
     }
 
+    /// Name of the folder the chart shows, for the middle of the circle.
+    var chartCenterName: String {
+        guard let index, let currentPath, let node = index.node(at: currentPath) else { return "" }
+        return node.name.isEmpty ? "/" : node.name
+    }
+
+    var chartCenterSize: Int64 {
+        guard let index, let currentPath else { return 0 }
+        return index.node(at: currentPath)?.size ?? 0
+    }
+
     // MARK: - Scanning
 
     /// Starts a scan in the background, replacing any scan in progress.

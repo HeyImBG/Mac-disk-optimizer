@@ -179,6 +179,15 @@ private func scanned(events: [ScanEvent]? = nil) async -> ScanViewModel {
     #expect(model.chartArcs.map(\.name) == ["z.bin"])
 }
 
+@MainActor
+@Test func chartCenterNamesTheFolderShown() async throws {
+    let model = await scanned()
+    #expect(model.chartCenterName == "r")
+    #expect(model.chartCenterSize > 0)
+    model.navigate(to: "/r/sub")
+    #expect(model.chartCenterName == "sub")
+}
+
 // MARK: - Saved scans
 
 private final class FakeStore: ScanPersisting, @unchecked Sendable {

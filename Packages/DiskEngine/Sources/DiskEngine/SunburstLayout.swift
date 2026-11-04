@@ -38,6 +38,15 @@ public enum SunburstLayout {
         return arcs.first { $0.depth == depth && angle >= $0.startAngle && angle < $0.endAngle }
     }
 
+    /// One line for a slice, for example `Downloads · 42 GB · 13%`. `total` is the size of the
+    /// folder the chart is showing, so the percentage is a share of that folder.
+    public static func caption(for arc: SunburstArc, total: Int64, format: (Int64) -> String) -> String {
+        guard total > 0 else { return "\(arc.name) · \(format(arc.size))" }
+        let percent = Double(arc.size) / Double(total) * 100
+        let shown = percent < 1 ? "<1%" : "\(Int(percent.rounded()))%"
+        return "\(arc.name) · \(format(arc.size)) · \(shown)"
+    }
+
     private static func add(children parent: FileNode, start: Double, span: Double, depth: Int,
                             hue: Double?, maxDepth: Int, minAngle: Double,
                             into out: inout [SunburstArc]) {
