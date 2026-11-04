@@ -32,6 +32,27 @@ private struct FakeSnapshots: SnapshotProvider {
     #expect(overview.info.purgeableBytes == 100)
 }
 
+private final class ChangingVolume: VolumeCapacityProvider, @unchecked Sendable {
+    let lock = NSLock()
+    var available: Int64 = 300
+    func capacities() throws -> VolumeCapacities {
+        lock.withLock { VolumeCapacities(total: 1_000, available: available, availableForImportantUsage: available) }
+    }
+}
+
+@MainActor
+@Test func volumeViewModelReloadPicksUpNewFreeSpace() async {
+    let volume = ChangingVolume()
+    let model = VolumeDebugViewModel(service: VolumeOverviewService(volume: volume, snapshots: FakeSnapshots()))
+    await model.load()
+    volume.lock.withLock { volume.available = 450 }
+    await model.load()
+    guard case .loaded(let overview) = model.state else {
+        Issue.record("expected loaded state"); return
+    }
+    #expect(overview.info.freeBytes == 450)
+}
+
 @MainActor
 @Test func volumeViewModelReportsFailure() async {
     let model = VolumeDebugViewModel(

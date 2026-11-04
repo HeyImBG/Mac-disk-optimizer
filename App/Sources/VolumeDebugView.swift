@@ -21,7 +21,8 @@ final class VolumeDebugViewModel {
     }
 
     func load() async {
-        state = .loading
+        // Keep showing the last numbers while refreshing, so the panel does not flicker.
+        if case .loaded = state {} else { state = .loading }
         do {
             state = .loaded(try await service.load())
         } catch {
@@ -57,7 +58,13 @@ struct VolumeDebugView: View {
                 }
             }
         }
-        .task { await model.load() }
+        .task {
+            // Free space changes as files are added or the Trash is emptied, so keep it fresh.
+            while !Task.isCancelled {
+                await model.load()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
     }
 
     private func row(_ label: String, _ bytes: Int64) -> some View {
